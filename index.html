@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="https://api.iconify.design/noto:airplane.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#F7F4EB" />
+    <meta name="description" content="Cozy group trip planner" />
+    <title>TripBook</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              paper: '#F7F4EB',
+              ink: '#2D2A26',
+              brand: '#FF8C66', // Warm terracotta
+              accent: '#8EB897', // Soft sage green
+              card: '#FFFFFF',
+              'nook-green': '#8DD6B4', // Animal Crossing-ish Green
+              'nook-yellow': '#F8F0A3', // Creamy Yellow
+            },
+            fontFamily: {
+              sans: ['"Noto Sans"', 'sans-serif'],
+              rounded: ['"Varela Round"', '"Noto Sans"', 'sans-serif'], // Stub for rounded font
+            },
+            boxShadow: {
+              'soft': '3px 3px 0px #D8D3C5',
+              'soft-hover': '5px 5px 0px #D8D3C5',
+              'hard': '2px 2px 0px #2D2A26',
+            },
+            borderRadius: {
+              'xl': '1rem',
+              '2xl': '1.5rem',
+              '3xl': '2rem',
+              '4xl': '2.5rem',
+            }
+          }
+        }
+      }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&family=Varela+Round&display=swap" rel="stylesheet">
+    <link rel="manifest" href="/manifest.webmanifest">
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "firebase/": "https://esm.sh/firebase@^12.6.0/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.561.0"
+  }
+}
+</script>
+<style>
+  body {
+    /* Dot grid pattern for notebook look */
+    background-color: #F7F4EB;
+    background-image: radial-gradient(#D6D2C4 2px, transparent 2px);
+    background-size: 24px 24px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Hide scrollbar for clean UI */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+</style>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="text-ink antialiased selection:bg-brand selection:text-white overscroll-none">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
