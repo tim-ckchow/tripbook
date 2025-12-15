@@ -771,7 +771,12 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
            </div>
         </div>
       )}
-
+ <button
+        onClick={() => setIsAdding(true)}
+        className="fixed bottom-24 right-4 w-14 h-14 bg-brand text-white rounded-full shadow-soft hover:shadow-soft-hover hover:scale-105 active:scale-95 transition-all flex items-center justify-center z-40"
+      >
+        <Plus size={28} />
+      </button>
       {/* --- EDIT SETTINGS MODAL --- */}
       {isEditingSettings && (
          <div className="fixed inset-0 bg-ink/50 z-[60] flex items-center justify-center backdrop-blur-sm p-4">
