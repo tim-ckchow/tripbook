@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { db, firebase } from '../../lib/firebase';
+import { useAuth } from '../../context/AuthContext';
 import { Trip, ScheduleItem, FlightDetails } from '../../types';
 import { Card, Button, Input } from '../../components/ui/Layout';
-import { Plane, Map, Bus, FileText, User, Luggage, Clock, Tag, ExternalLink, X, Plus, Trash2, CheckCircle } from 'lucide-react';
+import { Plane, Map, Bus, FileText, User, Luggage, Clock, Tag, ExternalLink, X, Plus, Trash2, CheckCircle, Lock } from 'lucide-react';
 
 interface BookingsTabProps {
   trip: Trip;
@@ -37,9 +38,11 @@ const AvatarFilter: React.FC<{
 );
 
 export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
+  const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState<SubTab>('flight');
   const [items, setItems] = useState<ScheduleItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorState, setErrorState] = useState<{ code: string; message: string } | null>(null);
   const [selectedPassenger, setSelectedPassenger] = useState<string | 'all'>('all');
   
   // Editing State
@@ -51,11 +54,12 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
   const [flightForm, setFlightForm] = useState<FlightDetails>({
       flightNumber: '', origin: '', destination: '', arrivalTime: '', 
       seat: '', terminal: '', gate: '', bookingReference: '', 
-      checkInTime: '', baggageAllowanceKg: ''
+      checkInTime: '', baggageAllowanceKg: '', arrivalDate: ''
   });
 
   useEffect(() => {
     setLoading(true);
+    setErrorState(null);
     // Fetch all items, filter in memory for smoothness or strictly query. 
     // Given the small scale, fetching trip schedule and filtering is fine.
     const unsubscribe = db.collection(`trips/${trip.id}/schedule`)
@@ -66,6 +70,14 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
         data.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
         setItems(data);
         setLoading(false);
+      }, (error: any) => {
+          console.error("Bookings snapshot error:", error);
+          if (error.code === 'permission-denied') {
+              setErrorState({ code: 'permission-denied', message: 'Access restricted' });
+          } else {
+              setErrorState({ code: 'error', message: 'Failed to load bookings' });
+          }
+          setLoading(false);
       });
     return () => unsubscribe();
   }, [trip.id, activeTab]);
@@ -75,37 +87,81 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
     return items.filter(item => !item.participants || item.participants.includes(selectedPassenger));
   }, [items, selectedPassenger]);
 
+  const handleAddNew = () => {
+    setEditingId(null);
+    setEditForm({
+      type: activeTab === 'general' ? 'sightseeing' : activeTab,
+      date: trip.startDate,
+      time: '12:00',
+      participants: trip.allowedEmails,
+      title: '',
+      notes: ''
+    });
+    setFlightForm({
+      flightNumber: '', origin: '', destination: '', arrivalTime: '', 
+      seat: '', terminal: '', gate: '', bookingReference: '', 
+      checkInTime: '', baggageAllowanceKg: '', arrivalDate: trip.startDate
+    });
+    setIsEditing(true);
+  };
+
   const handleEdit = (item: ScheduleItem) => {
       setEditingId(item.id);
       setEditForm({
+          type: item.type,
           date: item.date,
           time: item.time,
           participants: item.participants || trip.allowedEmails,
-          notes: item.notes
+          notes: item.notes,
+          title: item.title
       });
       if (item.type === 'flight' && item.flightDetails) {
           setFlightForm({ ...item.flightDetails });
+      } else {
+        // Reset flight form if switching from non-flight to flight in theory, 
+        // though UI prevents type switching here usually.
+        setFlightForm({
+            flightNumber: '', origin: '', destination: '', arrivalTime: '', 
+            seat: '', terminal: '', gate: '', bookingReference: '', 
+            checkInTime: '', baggageAllowanceKg: '', arrivalDate: item.date
+        });
       }
       setIsEditing(true);
   };
 
   const handleSave = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!editingId) return;
-
+      
       try {
           const payload: any = { ...editForm };
-          if (activeTab === 'flight') {
-              payload.flightDetails = flightForm;
-              // Ensure title stays synced if we want
-              payload.title = `Flight to ${flightForm.destination}`;
+          
+          // Ensure type is set (fallback)
+          if (!payload.type) {
+             payload.type = activeTab === 'general' ? 'sightseeing' : activeTab;
           }
 
-          await db.collection(`trips/${trip.id}/schedule`).doc(editingId).update(payload);
+          if (activeTab === 'flight') {
+              payload.flightDetails = flightForm;
+              // Ensure title stays synced for flights
+              payload.title = `Flight to ${flightForm.destination}`;
+          }
+          
+          // Default title if missing for non-flights
+          if (!payload.title && activeTab !== 'flight') {
+             payload.title = `New ${activeTab} booking`;
+          }
+
+          if (editingId) {
+             await db.collection(`trips/${trip.id}/schedule`).doc(editingId).update(payload);
+          } else {
+             payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+             await db.collection(`trips/${trip.id}/schedule`).add(payload);
+          }
+
           setIsEditing(false);
       } catch (err) {
           console.error(err);
-          alert("Failed to save booking details");
+          alert("Failed to save booking details. Check permissions.");
       }
   };
 
@@ -118,8 +174,21 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
     }
   };
 
+  if (errorState?.code === 'permission-denied') {
+      return (
+          <div className="flex flex-col items-center justify-center py-20 px-6 opacity-50">
+             <div className="text-4xl mb-4 flex justify-center"><Lock size={48} /></div>
+             <h3 className="font-bold text-lg mb-2 text-center">Restricted Access</h3>
+             <p className="text-center text-sm max-w-[200px] mb-6">
+                 Bookings are currently private or restricted.
+             </p>
+             <Button variant="secondary" onClick={logout} className="py-2 text-xs">Logout</Button>
+          </div>
+      );
+  }
+
   return (
-    <div className="pb-24 flex flex-col gap-6">
+    <div className="pb-24 flex flex-col gap-6 relative">
       
       {/* --- SUB NAVIGATION --- */}
       <div className="px-4 mt-2">
@@ -161,7 +230,7 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
                       <Luggage size={24} />
                   </div>
                   <h3 className="text-gray-400 font-bold">No {activeTab} bookings found</h3>
-                  <p className="text-xs text-gray-300 mt-2">Add them from the Plan tab first.</p>
+                  <p className="text-xs text-gray-300 mt-2">Add them using the + button.</p>
               </div>
           )}
 
@@ -259,12 +328,20 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
           ))}
       </div>
 
-      {/* --- EDIT MODAL --- */}
+      {/* --- ADD BUTTON (FAB) --- */}
+      <button
+        onClick={handleAddNew}
+        className="fixed bottom-24 right-4 w-14 h-14 bg-brand text-white rounded-full shadow-soft hover:shadow-soft-hover hover:scale-105 active:scale-95 transition-all flex items-center justify-center z-40"
+      >
+        <Plus size={28} />
+      </button>
+
+      {/* --- EDIT/ADD MODAL --- */}
       {isEditing && (
         <div className="fixed inset-0 bg-ink/20 z-[100] flex items-end sm:items-center justify-center backdrop-blur-sm sm:p-4">
            <div className="bg-white w-full max-w-md max-h-[90dvh] h-auto rounded-t-3xl sm:rounded-3xl shadow-xl flex flex-col animate-in slide-in-from-bottom-10 overflow-hidden pb-[env(safe-area-inset-bottom)]">
               <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                 <h3 className="font-bold text-lg font-rounded">Edit Booking Details</h3>
+                 <h3 className="font-bold text-lg font-rounded">{editingId ? 'Edit Booking' : 'Add Booking'}</h3>
                  <button onClick={() => setIsEditing(false)} className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500">
                     <X size={18} />
                  </button>
@@ -273,6 +350,17 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
               <div className="p-4 overflow-y-auto flex-1 no-scrollbar">
                   <form id="booking-form" onSubmit={handleSave} className="flex flex-col gap-4">
                       
+                      {activeTab !== 'flight' && (
+                          <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                             <Input 
+                                label="Title / Place Name" 
+                                placeholder="e.g. Hilton Hotel" 
+                                value={editForm.title || ''} 
+                                onChange={e => setEditForm({...editForm, title: e.target.value})} 
+                             />
+                          </div>
+                      )}
+
                       {activeTab === 'flight' && (
                           <>
                              <div className="bg-brand/5 border border-brand/20 p-4 rounded-2xl">
@@ -288,7 +376,12 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
                              </div>
 
                              <div className="grid grid-cols-2 gap-3">
-                                 <Input label="Departure Time" type="time" value={editForm.time} onChange={e => setEditForm({...editForm, time: e.target.value})} />
+                                 <Input label="Departure Date" type="date" value={editForm.date || ''} onChange={e => setEditForm({...editForm, date: e.target.value})} />
+                                 <Input label="Departure Time" type="time" value={editForm.time || ''} onChange={e => setEditForm({...editForm, time: e.target.value})} />
+                             </div>
+
+                             <div className="grid grid-cols-2 gap-3 pt-2 border-t border-dashed border-gray-200">
+                                 <Input label="Arrival Date" type="date" value={flightForm.arrivalDate || ''} onChange={e => setFlightForm({...flightForm, arrivalDate: e.target.value})} />
                                  <Input label="Arrival Time" type="time" value={flightForm.arrivalTime} onChange={e => setFlightForm({...flightForm, arrivalTime: e.target.value})} />
                              </div>
 
@@ -304,6 +397,21 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
                              </div>
                           </>
                       )}
+
+                      {/* Generic Date/Time for non-flight */}
+                      {activeTab !== 'flight' && (
+                         <div className="grid grid-cols-2 gap-3">
+                            <Input label="Date" type="date" value={editForm.date || ''} onChange={e => setEditForm({...editForm, date: e.target.value})} />
+                            <Input label="Time" type="time" value={editForm.time || ''} onChange={e => setEditForm({...editForm, time: e.target.value})} />
+                         </div>
+                      )}
+
+                      <Input 
+                        label="Notes / Address" 
+                        placeholder="Confirmation #, address, etc."
+                        value={editForm.notes || ''} 
+                        onChange={e => setEditForm({...editForm, notes: e.target.value})} 
+                      />
 
                       <div className="space-y-2 pt-2 border-t border-dashed border-gray-200">
                           <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Passengers</label>
@@ -324,7 +432,9 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
               </div>
 
               <div className="p-4 border-t border-gray-100 bg-gray-50">
-                  <Button type="submit" form="booking-form" className="w-full">Save Changes</Button>
+                  <Button type="submit" form="booking-form" className="w-full">
+                      {editingId ? 'Save Changes' : 'Add Booking'}
+                  </Button>
               </div>
            </div>
         </div>

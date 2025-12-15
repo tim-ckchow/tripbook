@@ -4,7 +4,7 @@ import { db, firebase } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { Trip } from '../../types';
 import { Screen, TopBar, Card, Button, Input } from '../../components/ui/Layout';
-import { Plus, ChevronRight, MapPin, RefreshCw, AlertTriangle, Loader } from 'lucide-react';
+import { Plus, ChevronRight, MapPin, RefreshCw, AlertTriangle, Loader, Lock } from 'lucide-react';
 
 interface TripListProps {
   onSelectTrip: (trip: Trip) => void;
@@ -158,6 +158,8 @@ export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
     setRetryTrigger(prev => prev + 1);
   };
 
+  // --- ERROR STATE VIEWS ---
+
   if (errorState?.code === 'missing-index') {
     return (
       <Screen className="flex flex-col items-center justify-center h-[80vh] text-center px-6">
@@ -171,10 +173,9 @@ export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
         <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl text-left text-sm text-orange-800 mb-8 w-full">
           <strong>Action Required:</strong>
           <ol className="list-decimal ml-4 mt-2 space-y-2">
-            <li>Open your browser's Developer Tools (F12 or right-click &gt; Inspect &gt; Console).</li>
-            <li>Look for a red error message containing a link starting with <u>https://console.firebase...</u></li>
-            <li>Click that link to automatically create the required index.</li>
-            <li>Wait for the index to build (approx. 2-5 mins).</li>
+            <li>Open your browser's Developer Tools (F12).</li>
+            <li>Look for a red error message with a link.</li>
+            <li>Click the link to create the index.</li>
           </ol>
         </div>
         <Button onClick={handleRetry} className="w-full max-w-xs">
@@ -182,6 +183,25 @@ export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
         </Button>
       </Screen>
     );
+  }
+
+  // Permission Denied View (Matches "Coming Soon" style)
+  if (errorState?.code === 'permission-denied') {
+      return (
+          <Screen className="flex flex-col items-center justify-center h-[80vh] text-center px-6">
+              <div className="text-center py-20 opacity-50">
+                <div className="text-4xl mb-4 flex justify-center"><Lock size={48} /></div>
+                <h3 className="font-bold text-xl mb-2">Access Restricted</h3>
+                <p className="max-w-[250px] mx-auto mb-6">
+                    You do not have permission to view these trips or the database rules are currently restricting access.
+                </p>
+                <div className="flex flex-col gap-3 items-center">
+                    <button onClick={handleRetry} className="text-sm font-bold underline">Try Again</button>
+                    <button onClick={logout} className="text-xs font-bold text-red-400">Logout</button>
+                </div>
+             </div>
+          </Screen>
+      );
   }
 
   return (

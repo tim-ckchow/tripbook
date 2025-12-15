@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 // FIX: The firestore imports are for v9. Switching to v8 style.
 import { db, firebase } from '../../lib/firebase';
+import { useAuth } from '../../context/AuthContext';
 import { Trip, ScheduleItem, ScheduleType, FlightDetails, AppTab } from '../../types';
 import { Card, Button, Input } from '../../components/ui/Layout';
-import { MapPin, Coffee, Bed, Bus, Plus, X, Plane, Users, AlertTriangle, RefreshCw, Calendar, Sparkles, Settings, Trash2, ArrowRight } from 'lucide-react';
+import { MapPin, Coffee, Bed, Bus, Plus, X, Plane, Users, AlertTriangle, RefreshCw, Calendar, Sparkles, Settings, Trash2, ArrowRight, Lock } from 'lucide-react';
 
 interface ScheduleTabProps {
   trip: Trip;
@@ -86,6 +87,7 @@ function getDaysArray(start: string, end: string) {
 }
 
 export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) => {
+  const { logout } = useAuth();
   const [items, setItems] = useState<ScheduleItem[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null); // Track which item is being edited
@@ -169,6 +171,11 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
             setErrorState({
                 code: 'missing-index',
                 message: "Database index missing. Please check browser console."
+            });
+        } else if (error.code === 'permission-denied') {
+            setErrorState({
+                code: 'permission-denied',
+                message: "Permission denied."
             });
         } else {
             setErrorState({
@@ -361,6 +368,20 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
         </Button>
       </div>
     );
+  }
+
+  // Permission Error View
+  if (errorState?.code === 'permission-denied') {
+      return (
+          <div className="flex flex-col items-center justify-center py-20 px-6 opacity-50">
+             <div className="text-4xl mb-4 text-center"><Lock size={48} /></div>
+             <h3 className="font-bold text-lg mb-2 text-center">Schedule Restricted</h3>
+             <p className="text-center text-sm max-w-[200px] mb-6">
+                 This schedule is currently private or restricted by security rules.
+             </p>
+             <Button variant="secondary" onClick={logout} className="py-2 text-xs">Logout</Button>
+          </div>
+      );
   }
 
   return (
