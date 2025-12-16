@@ -74,7 +74,7 @@ export const Login: React.FC = () => {
       </Card>
       
       <div className="mt-8 text-center text-xs text-gray-300">
-        v1.0.0
+        v1.1.0
       </div>
     </Screen>
   );
