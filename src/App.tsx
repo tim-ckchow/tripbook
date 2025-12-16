@@ -60,7 +60,7 @@ const AppContent: React.FC = () => {
       <Screen>
         {currentTab === AppTab.Schedule && <ScheduleTab trip={selectedTrip} onTabChange={setCurrentTab} />}
         {currentTab === AppTab.Bookings && <BookingsTab trip={selectedTrip} />}
-        {currentTab === AppTab.Members && <MembersTab trip={selectedTrip} />}
+        {currentTab === AppTab.Members && <MembersTab trip={selectedTrip} onTripExit={() => setSelectedTrip(null)} />}
         {/* Placeholders for other tabs */}
         {(currentTab !== AppTab.Schedule && currentTab !== AppTab.Bookings && currentTab !== AppTab.Members) && (
              <div className="text-center py-20 opacity-50">
