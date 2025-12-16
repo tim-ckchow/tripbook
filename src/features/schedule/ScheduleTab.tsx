@@ -21,17 +21,21 @@ const TypeIcon: React.FC<{ type: ScheduleType }> = ({ type }) => {
   }
 };
 
-const AvatarPile: React.FC<{ emails: string[] }> = ({ emails }) => {
+// Updated AvatarPile to support sizes
+const AvatarPile: React.FC<{ emails: string[], size?: 'sm' | 'md' }> = ({ emails, size = 'sm' }) => {
   if (!emails || emails.length === 0) return null;
+  
+  const dims = size === 'md' ? 'w-9 h-9 text-[10px]' : 'w-6 h-6 text-[8px]';
+
   return (
     <div className="flex -space-x-2">
       {emails.slice(0, 4).map((email, i) => (
-        <div key={email} className="w-6 h-6 rounded-full bg-paper border border-white flex items-center justify-center text-[8px] font-bold text-gray-600 uppercase shadow-sm" title={email}>
+        <div key={email} className={`${dims} rounded-full bg-paper border-2 border-white flex items-center justify-center font-bold text-gray-600 uppercase shadow-sm`} title={email}>
           {email[0]}
         </div>
       ))}
       {emails.length > 4 && (
-        <div className="w-6 h-6 rounded-full bg-gray-100 border border-white flex items-center justify-center text-[8px] font-bold text-gray-500 shadow-sm">
+        <div className={`${dims} rounded-full bg-gray-100 border-2 border-white flex items-center justify-center font-bold text-gray-500 shadow-sm`}>
           +{emails.length - 4}
         </div>
       )}
@@ -106,6 +110,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
   const [loading, setLoading] = useState(true);
   const [errorState, setErrorState] = useState<{ code: string; message: string } | null>(null);
   const [retryTrigger, setRetryTrigger] = useState(0);
+  const [refreshingItems, setRefreshingItems] = useState<Set<string>>(new Set());
 
   // Settings / Edit Dates State
   const [isEditingSettings, setIsEditingSettings] = useState(false);
@@ -204,6 +209,52 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
 
     return () => unsubscribe();
   }, [trip.id, retryTrigger]);
+
+  // Auto-refresh flight status on load if missing
+  useEffect(() => {
+    if(loading || items.length === 0) return;
+    
+    items.forEach(item => {
+        if(item.type === 'flight' && item.flightDetails?.flightNumber) {
+            // Force status to unavailable if not present
+            if(!item.flightDetails.status) {
+                refreshFlightStatus(item, true); // Silent auto refresh
+            }
+        }
+    });
+  }, [items]);
+
+  const refreshFlightStatus = async (item: ScheduleItem, silent = false) => {
+    if (!item.flightDetails?.flightNumber) return;
+    if (refreshingItems.has(item.id)) return;
+
+    if(!silent) {
+      setRefreshingItems(prev => new Set(prev).add(item.id));
+    }
+
+    // Mock API Latency
+    await new Promise(r => setTimeout(r, 800));
+    
+    // User requested "Unavailable" (Yellow) until API is integrated
+    const newStatus = 'Unavailable';
+
+    try {
+      await db.collection(`trips/${trip.id}/schedule`).doc(item.id).update({
+          'flightDetails.status': newStatus,
+          'flightDetails.lastUpdated': new Date().toISOString()
+      });
+    } catch (err) {
+        console.error("Failed to update status", err);
+    } finally {
+        if(!silent) {
+          setRefreshingItems(prev => {
+              const next = new Set(prev);
+              next.delete(item.id);
+              return next;
+          });
+        }
+    }
+  };
 
   const handleRetry = () => {
     setLoading(true);
@@ -525,55 +576,139 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                 {daysItems.map((item, index) => {
                   const uniqueKey = `${item.id}_${item.renderMode}`;
                   
-                  // --- FLIGHT CARD ---
-                  if (item.renderMode === 'flight_dep' || item.renderMode === 'flight_arr') {
-                    const isArrival = item.renderMode === 'flight_arr';
+                  // --- FLIGHT CARD (DEPARTURE - MAIN BOARDING PASS) ---
+                  if (item.renderMode === 'flight_dep') {
+                    const isRefreshing = refreshingItems.has(item.id);
+                    const statusText = item.flightDetails?.status || 'Scheduled';
                     
+                    // Status Styles
+                    let statusColorClass = 'text-gray-500';
+                    let statusDotClass = 'bg-gray-400';
+                    let statusBgClass = 'bg-gray-50 border-gray-100';
+
+                    if (statusText === 'Unavailable') {
+                        statusColorClass = 'text-yellow-600';
+                        statusDotClass = 'bg-yellow-500';
+                        statusBgClass = 'bg-yellow-50 border-yellow-100';
+                    } else if (statusText.toLowerCase().includes('delayed')) {
+                        statusColorClass = 'text-orange-600';
+                        statusDotClass = 'bg-orange-500';
+                        statusBgClass = 'bg-orange-50 border-orange-100';
+                    } else if (statusText === 'On Time') {
+                        statusColorClass = 'text-green-600';
+                        statusDotClass = 'bg-green-500';
+                        statusBgClass = 'bg-green-50 border-green-100';
+                    }
+
                     return (
                       <div key={uniqueKey} className="relative z-10 pl-2 cursor-pointer group" onClick={() => handleItemClick(item)}>
-                         <div className={`bg-white rounded-3xl shadow-soft border-2 overflow-hidden group-hover:rotate-1 transition-transform group-hover:shadow-soft-hover ${isArrival ? 'border-brand/50' : 'border-[#E0E5D5] group-hover:border-brand'}`}>
-                            {/* Header */}
-                            <div className={`p-4 border-b-2 border-dashed flex justify-between items-center ${isArrival ? 'bg-gray-50 border-gray-200' : 'bg-brand/10 border-brand/20'}`}>
-                                <div className={`flex items-center gap-2 font-bold ${isArrival ? 'text-gray-500' : 'text-brand'}`}>
-                                  <Plane size={18} className={isArrival ? 'rotate-90' : ''} />
-                                  <span className="text-sm tracking-widest font-rounded">{isArrival ? 'ARRIVAL' : 'BOARDING PASS'}</span>
+                         <div className="bg-white rounded-3xl shadow-soft border-2 border-[#E0E5D5] overflow-hidden transition-transform group-hover:shadow-soft-hover group-hover:border-brand">
+                            
+                            {/* Header: Label Left, Passengers Right */}
+                            <div className="p-4 border-b-2 border-dashed border-brand/20 bg-brand/10 flex justify-between items-start">
+                                <div className="flex items-center gap-2 font-bold text-brand mt-1.5">
+                                  <Plane size={18} />
+                                  <span className="text-sm tracking-widest font-rounded">BOARDING PASS</span>
                                 </div>
-                                <div className="text-xs font-mono font-bold text-gray-500 bg-white/50 px-2 py-1 rounded">{item.flightDetails?.flightNumber || 'FLIGHT'}</div>
+                                {/* Passenger List (Wrap if too many) */}
+                                <div className="flex flex-wrap justify-end gap-1.5 max-w-[65%]">
+                                    {(item.participants || []).map((email) => (
+                                        <div key={email} className="flex items-center gap-1.5 bg-white pl-1 pr-2 py-1 rounded-full border border-brand/10 shadow-sm">
+                                            <div className="w-5 h-5 rounded-full bg-brand text-white flex items-center justify-center text-[9px] font-bold uppercase">
+                                                {email[0]}
+                                            </div>
+                                            <span className="text-[10px] font-bold text-ink leading-none">{email.split('@')[0]}</span>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
+                            
                             {/* Body */}
-                            <div className="p-4">
-                                <div className="flex justify-between items-center mb-4">
-                                    <div className={`text-center ${isArrival ? 'opacity-50' : ''}`}>
+                            <div className="p-5">
+                                {/* CENTER BIG FLIGHT NUMBER */}
+                                <div className="text-center mb-6">
+                                    <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Flight Number</div>
+                                    <div className="text-4xl font-black text-ink tracking-tighter">{item.flightDetails?.flightNumber || 'TBD'}</div>
+                                </div>
+
+                                {/* ROUTE ROW */}
+                                <div className="flex justify-between items-center mb-6">
+                                    {/* Origin */}
+                                    <div className="text-center">
                                         <div className="text-3xl font-black text-ink">{item.flightDetails?.origin || 'ORG'}</div>
-                                        <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Departs</div>
-                                        <div className={`text-sm font-bold px-2 rounded-full inline-block mt-1 ${isArrival ? 'text-gray-400' : 'bg-brand/10 text-brand'}`}>
+                                        <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1">Departs</div>
+                                        <div className="text-sm font-bold px-3 py-1 rounded-full inline-block bg-brand/10 text-brand">
                                             {item.time}
                                         </div>
                                     </div>
+
+                                    {/* Icon */}
                                     <div className="flex-1 px-4 flex flex-col items-center opacity-30">
                                         <div className="h-[2px] w-full bg-ink relative top-3 border-b border-dashed"></div>
                                         <Plane className="text-ink relative bg-white px-1 rotate-90" size={24} />
                                     </div>
-                                    <div className={`text-center ${!isArrival ? 'opacity-50' : ''}`}>
+
+                                    {/* Destination */}
+                                    <div className="text-center">
                                         <div className="text-3xl font-black text-ink">{item.flightDetails?.destination || 'DST'}</div>
-                                        <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Arrives</div>
-                                        <div className={`text-sm font-bold px-2 rounded-full inline-block mt-1 ${isArrival ? 'bg-brand/10 text-brand' : 'text-gray-300'}`}>
+                                        <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1">Arrives</div>
+                                        {/* Arrival Time with different color code (Orange) */}
+                                        <div className="text-sm font-bold px-3 py-1 rounded-full inline-block bg-orange-100 text-orange-600">
                                             {item.flightDetails?.arrivalTime || '--:--'}
                                         </div>
                                     </div>
                                 </div>
-                                {isArrival && (
-                                    <div className="bg-gray-50 rounded-xl p-2 mb-3 text-center text-xs text-gray-500">
-                                        Arriving from <span className="font-bold">{item.flightDetails?.origin}</span>
+
+                                {/* STATUS ROW */}
+                                <div className={`flex justify-between items-center rounded-xl p-3 border ${statusBgClass}`}>
+                                    <div className="flex items-center gap-3">
+                                       <div className={`w-2.5 h-2.5 rounded-full ${statusDotClass} ${isRefreshing ? 'animate-pulse' : ''}`}></div>
+                                       <div className="flex flex-col">
+                                           <span className="text-[9px] uppercase font-bold text-gray-400 leading-none mb-0.5">Status</span>
+                                           <span className={`font-bold text-sm leading-none ${statusColorClass}`}>
+                                               {statusText}
+                                           </span>
+                                       </div>
                                     </div>
-                                )}
-                                <div className="flex justify-between items-center">
-                                  <span className="text-xs text-gray-400 font-medium">Passengers</span>
-                                  <AvatarPile emails={item.participants || []} />
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); refreshFlightStatus(item); }}
+                                      disabled={isRefreshing}
+                                      className={`p-2 rounded-full transition-colors text-gray-400 hover:text-brand hover:bg-white border border-transparent hover:border-gray-200 ${isRefreshing ? 'animate-spin text-brand' : ''}`}
+                                    >
+                                      <RefreshCw size={16} />
+                                    </button>
                                 </div>
+
                             </div>
                          </div>
                       </div>
+                    );
+                  }
+
+                  // --- FLIGHT CARD (ARRIVAL) ---
+                  if (item.renderMode === 'flight_arr') {
+                    return (
+                        <div key={uniqueKey} className="relative z-10 pl-2 cursor-pointer group opacity-70 hover:opacity-100 transition-opacity" onClick={() => handleItemClick(item)}>
+                            <div className="bg-white rounded-3xl shadow-soft border-2 border-dashed border-brand/30 overflow-hidden">
+                                <div className="p-3 bg-gray-50 flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-gray-400 font-bold">
+                                        <Plane size={16} className="rotate-90" />
+                                        <span className="text-xs uppercase tracking-widest">Arrival</span>
+                                    </div>
+                                    <div className="text-xs font-mono font-bold text-gray-400">{item.flightDetails?.flightNumber}</div>
+                                </div>
+                                <div className="p-4 flex justify-between items-center">
+                                    <div>
+                                        <div className="text-2xl font-black text-gray-500">{item.flightDetails?.destination}</div>
+                                        <div className="text-xs text-gray-400">Arrives {item.flightDetails?.arrivalTime}</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-xs text-gray-400">From</div>
+                                        <div className="text-lg font-bold text-gray-500">{item.flightDetails?.origin}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     );
                   }
 

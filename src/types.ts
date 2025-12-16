@@ -48,6 +48,8 @@ export interface FlightDetails {
   bookingReference?: string;
   checkInTime?: string;
   baggageAllowanceKg?: string;
+  status?: string; // e.g. 'On Time', 'Delayed'
+  lastUpdated?: string;
 }
 
 export interface ScheduleItem {
