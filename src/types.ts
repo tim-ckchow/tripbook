@@ -76,6 +76,28 @@ export interface TodoItem {
   createdAt: string;
 }
 
+export interface Transaction {
+  id: string;
+  tripId: string;
+  title: string;
+  amount: number;
+  currency: 'JPY' | 'HKD';
+  date: string;
+  paidBy: string; // uid of payer
+  splitAmong: string[]; // uids of people involved
+  type: 'expense' | 'settlement';
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface ExpenseLog {
+  id: string;
+  action: 'delete' | 'create' | 'update';
+  transactionSnapshot: Transaction;
+  performedBy: string; // uid
+  timestamp: string;
+}
+
 
 // --- APPLICATION UI TYPES ---
 

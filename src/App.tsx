@@ -5,6 +5,7 @@ import { TripList } from './features/trips/TripList';
 import { ScheduleTab } from './features/schedule/ScheduleTab';
 import { MembersTab } from './features/members/MembersTab';
 import { BookingsTab } from './features/bookings/BookingsTab'; 
+import { ExpensesTab } from './features/expenses/ExpensesTab';
 import { TabBar } from './components/ui/TabBar';
 import { Screen, TopBar } from './components/ui/Layout';
 import { AppTab, Trip } from './types';
@@ -65,7 +66,7 @@ const AppContent: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F0FFF7]">
+      <div className="min-h-screen flex items-center justify-center bg-[#F7F4EB]">
         <div className="animate-pulse text-brand font-bold">Loading...</div>
       </div>
     );
@@ -118,10 +119,11 @@ const AppContent: React.FC = () => {
       <Screen>
         {currentTab === AppTab.Schedule && <ScheduleTab trip={trip} onTabChange={handleTabChange} />}
         {currentTab === AppTab.Bookings && <BookingsTab trip={trip} initialTab={bookingsInitialTab} />}
+        {currentTab === AppTab.Expenses && <ExpensesTab trip={trip} />}
         {currentTab === AppTab.Members && <MembersTab trip={trip} onTripExit={() => setTripId(null)} />}
         
         {/* Placeholders for other tabs */}
-        {(currentTab !== AppTab.Schedule && currentTab !== AppTab.Bookings && currentTab !== AppTab.Members) && (
+        {(currentTab !== AppTab.Schedule && currentTab !== AppTab.Bookings && currentTab !== AppTab.Expenses && currentTab !== AppTab.Members) && (
              <div className="text-center py-20 opacity-50">
                 <div className="text-4xl mb-4">🚧</div>
                 <h3 className="font-bold">Coming Soon</h3>
