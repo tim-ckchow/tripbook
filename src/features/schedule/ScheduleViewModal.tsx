@@ -13,6 +13,12 @@ interface ScheduleViewModalProps {
 export const ScheduleViewModal: React.FC<ScheduleViewModalProps> = ({ item, onClose, onEdit }) => {
   if (!item) return null;
 
+  const getSafeLink = (link?: string) => {
+    if (!link) return '';
+    if (link.startsWith('http://') || link.startsWith('https://')) return link;
+    return `https://${link}`;
+  };
+
   return (
       <div className="fixed inset-0 bg-ink/20 z-[100] flex items-end sm:items-center justify-center backdrop-blur-sm sm:p-4" onClick={onClose}>
           <div 
@@ -53,7 +59,7 @@ export const ScheduleViewModal: React.FC<ScheduleViewModalProps> = ({ item, onCl
 
                    {/* Location */}
                    {item.locationLink && (
-                       <a href={item.locationLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-4 rounded-2xl bg-blue-50/50 border border-blue-100 hover:bg-blue-50 transition-colors group">
+                       <a href={getSafeLink(item.locationLink)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-4 rounded-2xl bg-blue-50/50 border border-blue-100 hover:bg-blue-50 transition-colors group">
                            <div className="bg-white p-2 rounded-full text-blue-500 shadow-sm">
                               <MapPin size={20} />
                            </div>
@@ -67,7 +73,7 @@ export const ScheduleViewModal: React.FC<ScheduleViewModalProps> = ({ item, onCl
 
                    {/* Notes */}
                    {item.notes && (
-                       <div className="bg-gray-50 rounded-2xl p-4 border border-dashed border-gray-200">
+                       <div className="bg-white rounded-2xl p-4 border border-dashed border-gray-200 shadow-sm">
                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Notes</div>
                            <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{item.notes}</p>
                        </div>

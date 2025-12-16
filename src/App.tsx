@@ -65,7 +65,7 @@ const AppContent: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F7F4EB]">
+      <div className="min-h-screen flex items-center justify-center bg-[#F0FFF7]">
         <div className="animate-pulse text-brand font-bold">Loading...</div>
       </div>
     );

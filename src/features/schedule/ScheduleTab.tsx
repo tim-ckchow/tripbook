@@ -266,7 +266,10 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
         }
         if (item.type === 'hotel') {
             if (item.date === selectedDate) displayItems.push({ ...item, renderMode: 'hotel_in', sortTime: item.time });
-            if (item.endDate === selectedDate) displayItems.push({ ...item, renderMode: 'hotel_out', sortTime: item.endTime || '11:00' });
+            // FIXED: Only show Check Out if it is on a different day than Check In
+            if (item.endDate === selectedDate && item.endDate !== item.date) {
+                 displayItems.push({ ...item, renderMode: 'hotel_out', sortTime: item.endTime || '11:00' });
+            }
             return;
         }
         if (item.date === selectedDate) displayItems.push({ ...item, renderMode: 'standard', sortTime: item.time });
@@ -503,15 +506,16 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                                             <MapPin size={10} /> View Map
                                         </div>
                                     )}
-                                    {(item.notes || (item.participants && item.participants.length < trip.allowedEmails.length)) && (
-                                        <div className="bg-white/50 rounded-xl p-2 text-sm text-gray-600 border border-black/5 flex flex-col gap-2 mt-1">
-                                            {item.notes && <p className="italic">"{item.notes}"</p>}
-                                            {item.participants && item.participants.length < trip.allowedEmails.length && (
-                                                <div className="flex items-center gap-2 pt-1 border-t border-dashed border-gray-200">
-                                                    <span className="text-[10px] font-bold uppercase text-gray-400">Guests</span>
-                                                    <AvatarPile emails={item.participants} />
-                                                </div>
-                                            )}
+                                    {item.notes && (
+                                        <div className="bg-white rounded-2xl p-3 border border-dashed border-gray-200 shadow-sm mt-2">
+                                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Notes</div>
+                                            <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{item.notes}</p>
+                                        </div>
+                                    )}
+                                    {item.participants && item.participants.length < trip.allowedEmails.length && (
+                                        <div className="bg-white rounded-xl p-2 border border-black/5 flex items-center gap-2 mt-2">
+                                            <span className="text-[10px] font-bold uppercase text-gray-400">Guests</span>
+                                            <AvatarPile emails={item.participants} />
                                         </div>
                                     )}
                                 </Card>
@@ -546,15 +550,16 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                                      <MapPin size={12} /> Map Link
                                  </div>
                              )}
-                             {(item.notes || (item.participants && item.participants.length < trip.allowedEmails.length)) && (
-                               <div className="bg-[#F7F4EB] rounded-xl p-3 text-sm text-gray-600 border border-[#E0E5D5] flex flex-col gap-2">
-                                  {item.notes && <p className="italic">"{item.notes}"</p>}
-                                  {item.participants && item.participants.length < trip.allowedEmails.length && (
-                                    <div className="flex items-center gap-2 pt-1 border-t border-dashed border-gray-200">
-                                      <span className="text-[10px] font-bold uppercase text-gray-400">With</span>
-                                      <AvatarPile emails={item.participants} />
-                                    </div>
-                                  )}
+                             {item.notes && (
+                                <div className="bg-white rounded-2xl p-3 border border-dashed border-gray-200 shadow-sm mt-2">
+                                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Notes</div>
+                                    <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{item.notes}</p>
+                                </div>
+                             )}
+                             {item.participants && item.participants.length < trip.allowedEmails.length && (
+                               <div className="bg-white rounded-xl p-2 border border-black/5 flex items-center gap-2 mt-2">
+                                    <span className="text-[10px] font-bold uppercase text-gray-400">With</span>
+                                    <AvatarPile emails={item.participants} />
                                </div>
                              )}
                           </Card>
