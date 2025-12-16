@@ -51,29 +51,25 @@ export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { lab
 // --- LAYOUTS ---
 
 export const Screen: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = "" }) => (
-  // Updated padding to handle safe areas (notches/home bars)
-  <div className={`min-h-screen pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(4rem+env(safe-area-inset-top))] px-4 max-w-md mx-auto relative ${className}`}>
+  // Updated padding to handle safe areas and taller header
+  <div className={`min-h-screen pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(6rem+env(safe-area-inset-top))] px-4 max-w-md mx-auto relative ${className}`}>
     {children}
   </div>
 );
 
 export const TopBar: React.FC<{ title: string; onBack?: () => void; rightAction?: React.ReactNode }> = ({ title, onBack, rightAction }) => (
-  // Updated top positioning to handle safe area
-  <div className="fixed top-0 left-0 right-0 z-50 flex flex-col items-center justify-start pointer-events-none transition-all duration-300 pt-[env(safe-area-inset-top)]">
-     <div className="w-full max-w-md px-4 pt-2">
-        {/* Floating Pill Header */}
-        <div className="bg-white/90 backdrop-blur-md shadow-sm border border-white/50 rounded-full px-4 py-2 flex items-center justify-between pointer-events-auto w-full">
-            <div className="flex items-center gap-2 flex-1 overflow-hidden">
-              {onBack && (
-                <button onClick={onBack} className="p-2 -ml-2 hover:bg-black/5 rounded-full text-gray-500 transition-colors">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-                </button>
-              )}
-              <h1 className="text-lg font-bold truncate text-ink font-rounded">{title}</h1>
-            </div>
-            <div className="flex gap-2 flex-shrink-0">
-              {rightAction}
-            </div>
+  <div className="fixed top-0 left-0 right-0 z-50 bg-[#F5FFFA]/90 backdrop-blur-md border-b border-[#E0E5D5] pt-[env(safe-area-inset-top)] transition-all duration-300">
+     <div className="w-full max-w-md mx-auto px-6 py-5 flex items-center justify-between">
+        <div className="flex items-center gap-3 flex-1 overflow-hidden">
+          {onBack && (
+            <button onClick={onBack} className="p-2 -ml-2 hover:bg-black/5 rounded-full text-gray-500 transition-colors">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+          )}
+          <h1 className="text-xl font-bold truncate text-ink font-rounded">{title}</h1>
+        </div>
+        <div className="flex gap-2 flex-shrink-0">
+          {rightAction}
         </div>
      </div>
   </div>

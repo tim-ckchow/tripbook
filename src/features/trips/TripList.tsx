@@ -206,6 +206,7 @@ export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
 
   return (
     <>
+    
       <TopBar 
         title="My Trips" 
         rightAction={
