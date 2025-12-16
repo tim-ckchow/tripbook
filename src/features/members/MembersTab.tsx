@@ -14,12 +14,9 @@ interface MembersTabProps {
 export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
   const { user } = useAuth();
   
-  // We maintain both the official members (those who have logged in/joined) 
-  // and the raw allowedEmails list (for invites).
   const [members, setMembers] = useState<TripMember[]>([]);
-  const [allowedEmails, setAllowedEmails] = useState<string[]>(trip.allowedEmails || []);
+  // We use trip.allowedEmails from props which is kept fresh by App.tsx listener
   
-  const [loading, setLoading] = useState(true);
   const [newEmail, setNewEmail] = useState('');
   const [addLoading, setAddLoading] = useState(false);
   
@@ -30,30 +27,14 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
   const isOwner = user?.uid === trip.ownerUid;
 
   useEffect(() => {
-    // 1. Listen to the Members Collection (Profile data for joined users)
+    // Listen to the Members Collection (Profile data for joined users)
     const unsubMembers = db.collection(`trips/${trip.id}/members`)
       .onSnapshot(snapshot => {
         const membersData = snapshot.docs.map(doc => doc.data() as TripMember);
         setMembers(membersData);
       });
 
-    // 2. Listen to the Trip Document (Real-time list of allowed emails)
-    const unsubTrip = db.collection('trips').doc(trip.id)
-      .onSnapshot(doc => {
-        // Handle case where doc is deleted while listener is active
-        if (!doc.exists) return;
-
-        const data = doc.data() as Trip;
-        if (data && data.allowedEmails) {
-            setAllowedEmails(data.allowedEmails);
-        }
-        setLoading(false);
-      });
-
-    return () => {
-        unsubMembers();
-        unsubTrip();
-    };
+    return () => unsubMembers();
   }, [trip.id]);
 
   const handleAddMember = async (e: React.FormEvent) => {
@@ -86,16 +67,15 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
       if (!user) return;
       setActionLoading(true);
       try {
-          // CRITICAL SEQUENCE:
+          // CRITICAL SEQUENCE for Rules Compliance:
           // 1. Remove email from allowlist first.
-          // This ensures that we are modifying the trip document while we still have the 'member' document,
-          // which grants us the permission to update via the `hasMemberDoc` rule.
+          // We do this while the Member Doc still exists, preserving permissions if the rule checks for it.
           await db.collection('trips').doc(trip.id).update({
              allowedEmails: firebase.firestore.FieldValue.arrayRemove(user.email)
           });
 
           // 2. Delete member doc.
-          // Now we can safely remove our own member record.
+          // We can always delete our own member doc (uid matches auth.uid).
           await db.collection(`trips/${trip.id}/members`).doc(user.uid).delete();
 
           // Exit to trip list
@@ -113,7 +93,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
       try {
           // Just delete the trip document as requested
           await db.collection('trips').doc(trip.id).delete();
-          // Exit to trip list
+          // Exit handled by App.tsx listener mostly, but we call exit to be safe/responsive
           onTripExit();
       } catch (err) {
           console.error("Error deleting trip:", err);
@@ -155,7 +135,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
            Team List
         </h3>
         <div className="flex flex-col gap-3">
-          {allowedEmails.map((email) => {
+          {(trip.allowedEmails || []).map((email) => {
             // Find if this email has a corresponding member doc (joined user)
             const memberDoc = members.find(m => m.email === email);
             
@@ -190,8 +170,6 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
                 </div>
             );
           })}
-
-          {loading && <div className="text-gray-400 text-sm">Loading team...</div>}
         </div>
       </Card>
       
