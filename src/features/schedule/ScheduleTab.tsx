@@ -2,81 +2,34 @@ import React, { useEffect, useState, useMemo } from 'react';
 // FIX: The firestore imports are for v9. Switching to v8 style.
 import { db, firebase } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
-import { Trip, ScheduleItem, ScheduleType, FlightDetails, AppTab } from '../../types';
-import { Card, Button, Input } from '../../components/ui/Layout';
-import { MapPin, Coffee, Bed, Bus, Plus, X, Plane, Users, AlertTriangle, RefreshCw, Calendar, Sparkles, Settings, Trash2, ArrowRight, Lock, LogIn, LogOut, Edit2, ExternalLink } from 'lucide-react';
+import { Trip, ScheduleItem, FlightDetails, AppTab } from '../../types';
+import { Card, Button } from '../../components/ui/Layout';
+import { Plus, Plane, RefreshCw, AlertTriangle, Sparkles, Settings, Lock, LogIn, LogOut, Calendar, MapPin, Bed } from 'lucide-react';
+
+// Imported Sub-Components
+import { TypeIcon, AvatarPile, AvatarFilter } from './ScheduleShared';
+import { ScheduleEditModal } from './ScheduleEditModal';
+import { ScheduleViewModal } from './ScheduleViewModal';
+import { TripSettingsModal } from './TripSettingsModal';
 
 interface ScheduleTabProps {
   trip: Trip;
   onTabChange?: (tab: AppTab, subTab?: string) => void;
 }
 
-const TypeIcon: React.FC<{ type: ScheduleType }> = ({ type }) => {
-  switch (type) {
-    case 'sightseeing': return <MapPin className="text-blue-500" size={18} />;
-    case 'food': return <Coffee className="text-orange-500" size={18} />;
-    case 'hotel': return <Bed className="text-purple-500" size={18} />;
-    case 'transport': return <Bus className="text-green-500" size={18} />;
-    case 'flight': return <Plane className="text-brand" size={18} />;
-  }
-};
-
-// Updated AvatarPile to support sizes
-const AvatarPile: React.FC<{ emails: string[], size?: 'sm' | 'md' }> = ({ emails, size = 'sm' }) => {
-  if (!emails || emails.length === 0) return null;
-  
-  const dims = size === 'md' ? 'w-9 h-9 text-[10px]' : 'w-6 h-6 text-[8px]';
-
-  return (
-    <div className="flex -space-x-2">
-      {emails.slice(0, 4).map((email, i) => (
-        <div key={email} className={`${dims} rounded-full bg-paper border-2 border-white flex items-center justify-center font-bold text-gray-600 uppercase shadow-sm`} title={email}>
-          {email[0]}
-        </div>
-      ))}
-      {emails.length > 4 && (
-        <div className={`${dims} rounded-full bg-gray-100 border-2 border-white flex items-center justify-center font-bold text-gray-500 shadow-sm`}>
-          +{emails.length - 4}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const AvatarFilter: React.FC<{ 
-    email: string; 
-    active: boolean; 
-    onClick: () => void 
-}> = ({ email, active, onClick }) => (
-    <button 
-        onClick={onClick}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-full border-2 transition-all flex-shrink-0 ${active ? 'bg-ink text-white border-ink' : 'bg-white text-gray-400 border-gray-200'}`}
-    >
-        <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${active ? 'bg-white text-ink' : 'bg-gray-100 text-gray-500'}`}>
-            {email[0].toUpperCase()}
-        </div>
-        <span className="text-xs font-bold">{email.split('@')[0]}</span>
-    </button>
-);
-
 // --- HELPERS ---
 
-// Helper to generate all dates between start and end (inclusive)
 function getDaysArray(start: string, end: string) {
     const arr = [];
     if (!start || !end) return [];
-
-    // Parse YYYY-MM-DD manually to avoid timezone shifts
     const [sY, sM, sD] = start.split('-').map(Number);
     const [eY, eM, eD] = end.split('-').map(Number);
     
     let dt = new Date(sY, sM - 1, sD);
     const endDate = new Date(eY, eM - 1, eD);
-
-    // Safety check for infinite loops
     if (dt > endDate) return [start]; 
 
-    const MAX_DAYS = 365; // Sanity limit
+    const MAX_DAYS = 365; 
     let count = 0;
 
     while (dt <= endDate && count < MAX_DAYS) {
@@ -96,7 +49,6 @@ function formatDateShort(dateStr: string) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-// Extends ScheduleItem to include render context
 type DisplayItem = ScheduleItem & { 
     renderMode: 'flight_dep' | 'flight_arr' | 'hotel_in' | 'hotel_out' | 'standard';
     sortTime: string;
@@ -105,71 +57,45 @@ type DisplayItem = ScheduleItem & {
 export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) => {
   const { logout } = useAuth();
   const [items, setItems] = useState<ScheduleItem[]>([]);
-  const [isAdding, setIsAdding] = useState(false); // Acts as Edit/Add Modal Visibility
-  const [viewingItemId, setViewingItemId] = useState<string | null>(null); // Acts as Read-Only Modal Visibility
-
-  const [editingId, setEditingId] = useState<string | null>(null); // Track which item is being edited
+  
+  // MODAL STATES
+  const [isAdding, setIsAdding] = useState(false);
+  const [viewingItemId, setViewingItemId] = useState<string | null>(null); 
+  const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
+  
+  // LOADING / ERROR
   const [loading, setLoading] = useState(true);
   const [errorState, setErrorState] = useState<{ code: string; message: string } | null>(null);
   const [retryTrigger, setRetryTrigger] = useState(0);
   const [refreshingItems, setRefreshingItems] = useState<Set<string>>(new Set());
 
-  // Settings / Edit Dates State
+  // SETTINGS
   const [isEditingSettings, setIsEditingSettings] = useState(false);
-  const [editDateRange, setEditDateRange] = useState({ start: trip.startDate, end: trip.endDate });
-  const [savingSettings, setSavingSettings] = useState(false);
 
-  // Filter State
+  // FILTER
   const [selectedPassenger, setSelectedPassenger] = useState<string | 'all'>('all');
 
   // VIEW STATE
   const allDates = useMemo(() => {
     const range = getDaysArray(trip.startDate, trip.endDate);
-    
-    // Also include any dates that existing items have (including flight arrivals or hotel checkouts)
     const extraDates = new Set<string>();
     items.forEach(i => {
         if(i.date) extraDates.add(i.date);
         if(i.endDate) extraDates.add(i.endDate);
         if(i.type === 'flight' && i.flightDetails?.arrivalDate) extraDates.add(i.flightDetails.arrivalDate);
     });
-    
-    // Combine and sort
     const unique = Array.from(new Set([...range, ...Array.from(extraDates)]));
     unique.sort();
     return unique.length > 0 ? unique : [trip.startDate];
   }, [trip.startDate, trip.endDate, items]);
 
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-      // Default to today if within range, otherwise start date
       const today = new Date().toISOString().split('T')[0];
       if (allDates.includes(today)) return today;
       return allDates[0] || trip.startDate;
   });
 
-  // Form State
-  const [newItem, setNewItem] = useState<Partial<ScheduleItem>>({
-    type: 'sightseeing',
-    date: selectedDate,
-    endDate: selectedDate,
-    time: '09:00',
-    endTime: '',
-    title: '',
-    participants: trip.allowedEmails // Default to everyone
-  });
-  
-  const [flightData, setFlightData] = useState<FlightDetails>({
-    flightNumber: '', origin: 'ABC', destination: 'XYZ', arrivalTime: '', seat: '', arrivalDate: ''
-  });
-
-  // Sync new item date when switching tabs (only if not editing)
-  useEffect(() => {
-    if (!editingId) {
-      setNewItem(prev => ({ ...prev, date: selectedDate, endDate: selectedDate }));
-      setFlightData(prev => ({ ...prev, arrivalDate: selectedDate }));
-    }
-  }, [selectedDate, editingId]);
-
+  // --- DATA FETCHING ---
   useEffect(() => {
     setLoading(true);
     setErrorState(null);
@@ -188,7 +114,6 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
       setErrorState(null);
     }, (error: any) => {
         console.error("Schedule snapshot error:", error);
-        
         if (error.code === 'failed-precondition' && error.message.includes('index')) {
             setErrorState({
                 code: 'missing-index',
@@ -208,36 +133,24 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
         setItems([]);
         setLoading(false);
     });
-
     return () => unsubscribe();
   }, [trip.id, retryTrigger]);
 
-  // Auto-refresh flight status on load if missing
+  // Auto-refresh flight status
   useEffect(() => {
     if(loading || items.length === 0) return;
-    
     items.forEach(item => {
-        if(item.type === 'flight' && item.flightDetails?.flightNumber) {
-            // Force status to unavailable if not present
-            if(!item.flightDetails.status) {
-                refreshFlightStatus(item, true); // Silent auto refresh
-            }
+        if(item.type === 'flight' && item.flightDetails?.flightNumber && !item.flightDetails.status) {
+            refreshFlightStatus(item, true);
         }
     });
   }, [items]);
 
   const refreshFlightStatus = async (item: ScheduleItem, silent = false) => {
-    if (!item.flightDetails?.flightNumber) return;
-    if (refreshingItems.has(item.id)) return;
+    if (!item.flightDetails?.flightNumber || refreshingItems.has(item.id)) return;
+    if(!silent) setRefreshingItems(prev => new Set(prev).add(item.id));
 
-    if(!silent) {
-      setRefreshingItems(prev => new Set(prev).add(item.id));
-    }
-
-    // Mock API Latency
     await new Promise(r => setTimeout(r, 800));
-    
-    // User requested "Unavailable" (Yellow) until API is integrated
     const newStatus = 'Unavailable';
 
     try {
@@ -245,16 +158,9 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
           'flightDetails.status': newStatus,
           'flightDetails.lastUpdated': new Date().toISOString()
       });
-    } catch (err) {
-        console.error("Failed to update status", err);
-    } finally {
-        if(!silent) {
-          setRefreshingItems(prev => {
-              const next = new Set(prev);
-              next.delete(item.id);
-              return next;
-          });
-        }
+    } catch (err) { console.error("Failed to update status", err); } 
+    finally {
+        if(!silent) setRefreshingItems(prev => { const next = new Set(prev); next.delete(item.id); return next; });
     }
   };
 
@@ -264,92 +170,57 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
     setRetryTrigger(prev => prev + 1);
   };
 
-  const handleSaveSettings = async (e: React.FormEvent) => {
-      e.preventDefault();
-      setSavingSettings(true);
+  // --- ACTIONS ---
+
+  const handleSaveSettings = async (start: string, end: string) => {
       try {
           await db.collection('trips').doc(trip.id).update({
-              startDate: editDateRange.start,
-              endDate: editDateRange.end
+              startDate: start,
+              endDate: end
           });
-          setIsEditingSettings(false);
       } catch (err) {
           console.error(err);
           alert("Failed to update trip dates.");
-      } finally {
-          setSavingSettings(false);
       }
   };
 
-  const resetForm = () => {
-    setIsAdding(false);
-    setEditingId(null);
-    setNewItem({ 
-      title: '', 
-      notes: '', 
-      locationLink: '',
-      type: 'sightseeing',
-      date: selectedDate, 
-      endDate: selectedDate,
-      time: '09:00',
-      endTime: '',
-      participants: trip.allowedEmails
-    }); 
-    setFlightData({ flightNumber: '', origin: 'ABC', destination: 'XYZ', arrivalTime: '', seat: '', arrivalDate: selectedDate });
-  };
-
-  const handleAddItem = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newItem.title && newItem.type !== 'flight') return; 
-
+  const handleSaveItem = async (newItem: Partial<ScheduleItem>, flightData: FlightDetails) => {
     try {
-      const payload: any = {
-        ...newItem
-      };
+      const payload: any = { ...newItem };
 
       if (newItem.type === 'flight') {
         payload.flightDetails = {
             ...flightData,
-            // Ensure arrivalDate is set, defaulting to departure date if empty
             arrivalDate: flightData.arrivalDate || newItem.date
         };
-        // Auto-title if empty
         if (!payload.title) payload.title = `Flight to ${flightData.destination}`;
         delete payload.endDate; 
       } else {
-        // Ensure endDate is at least the start date
         if (!payload.endDate) payload.endDate = payload.date;
       }
 
-      if (editingId) {
-        // Update existing
-        await db.collection(`trips/${trip.id}/schedule`).doc(editingId).update(payload);
+      if (editingItem) {
+        await db.collection(`trips/${trip.id}/schedule`).doc(editingItem.id).update(payload);
       } else {
-        // Create new
         payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
         await db.collection(`trips/${trip.id}/schedule`).add(payload);
       }
       
-      // Close modal. If we were viewing an item, the view modal remains (or will re-render)
       setIsAdding(false);
-      // NOTE: We do not clear editingId here if we want to return to View Mode? 
-      // Actually, standard flow: Close Edit Modal -> If viewingItemId exists, user sees View Modal again with fresh data.
-      // So resetting editingId is fine.
-      setEditingId(null);
-      
+      setEditingItem(null);
     } catch (err) {
       console.error(err);
       alert('Failed to save');
     }
   };
 
-  const handleDeleteItem = async () => {
-    if (!editingId) return;
+  const handleDeleteItem = async (id: string) => {
     if (confirm("Are you sure you want to delete this plan?")) {
         try {
-            await db.collection(`trips/${trip.id}/schedule`).doc(editingId).delete();
-            resetForm();
-            setViewingItemId(null); // Close view modal if open
+            await db.collection(`trips/${trip.id}/schedule`).doc(id).delete();
+            setIsAdding(false);
+            setEditingItem(null);
+            setViewingItemId(null);
         } catch (err) {
             console.error("Failed to delete", err);
             alert("Could not delete item");
@@ -358,55 +229,24 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
   };
 
   const handleItemClick = (item: ScheduleItem) => {
-      // 1. Transport -> Redirect to Bookings (Transport Tab)
       if (item.type === 'transport' && onTabChange) {
           onTabChange(AppTab.Bookings, 'transport');
           return;
       }
-
-      // 2. Flight / Hotel -> Redirect to Bookings (respective Tab)
       if ((item.type === 'flight' || item.type === 'hotel') && onTabChange) {
           onTabChange(AppTab.Bookings, item.type);
           return;
       }
-
-      // 3. Sightseeing / Food / Other -> Open Read-Only Popup
       setViewingItemId(item.id);
   };
 
   const handleEditFromView = (item: ScheduleItem) => {
-      setEditingId(item.id);
-      setNewItem({
-          type: item.type,
-          date: item.date,
-          endDate: item.endDate || item.date,
-          time: item.time,
-          endTime: item.endTime || '',
-          title: item.title,
-          notes: item.notes || '',
-          locationLink: item.locationLink || '',
-          participants: item.participants || []
-      });
-      // (Skipping flight data population since flights redirect to Bookings tab anyway)
-      
-      setIsAdding(true); // Open Edit Modal
-  };
-
-  const toggleParticipant = (email: string) => {
-    const current = newItem.participants || [];
-    if (current.includes(email)) {
-      setNewItem({ ...newItem, participants: current.filter(e => e !== email) });
-    } else {
-      setNewItem({ ...newItem, participants: [...current, email] });
-    }
+      setEditingItem(item);
+      setIsAdding(true);
   };
   
-  // Derived View Item (live update from items array)
-  const viewingItem = useMemo(() => {
-      return items.find(i => i.id === viewingItemId);
-  }, [items, viewingItemId]);
+  const viewingItem = useMemo(() => items.find(i => i.id === viewingItemId) || null, [items, viewingItemId]);
 
-  // --- FILTER & SORT ITEMS FOR SELECTED DATE ---
   const daysItems = useMemo(() => {
     const filtered = items.filter(item => {
         if (selectedPassenger === 'all') return true;
@@ -419,65 +259,40 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
     const displayItems: DisplayItem[] = [];
 
     filtered.forEach(item => {
-        // FLIGHTS
         if (item.type === 'flight') {
-            if (item.date === selectedDate) {
-                displayItems.push({ ...item, renderMode: 'flight_dep', sortTime: item.time });
-            }
-            if (item.flightDetails?.arrivalDate === selectedDate && item.date !== selectedDate) {
-                displayItems.push({ ...item, renderMode: 'flight_arr', sortTime: item.flightDetails.arrivalTime || '00:00' });
-            }
+            if (item.date === selectedDate) displayItems.push({ ...item, renderMode: 'flight_dep', sortTime: item.time });
+            if (item.flightDetails?.arrivalDate === selectedDate && item.date !== selectedDate) displayItems.push({ ...item, renderMode: 'flight_arr', sortTime: item.flightDetails.arrivalTime || '00:00' });
             return;
         }
-
-        // HOTELS
         if (item.type === 'hotel') {
-            if (item.date === selectedDate) {
-                 displayItems.push({ ...item, renderMode: 'hotel_in', sortTime: item.time });
-            }
-            if (item.endDate === selectedDate) {
-                 displayItems.push({ ...item, renderMode: 'hotel_out', sortTime: item.endTime || '11:00' });
-            }
+            if (item.date === selectedDate) displayItems.push({ ...item, renderMode: 'hotel_in', sortTime: item.time });
+            if (item.endDate === selectedDate) displayItems.push({ ...item, renderMode: 'hotel_out', sortTime: item.endTime || '11:00' });
             return;
         }
-        
-        // STANDARD ITEMS
-        if (item.date === selectedDate) {
-            displayItems.push({ ...item, renderMode: 'standard', sortTime: item.time });
-        }
+        if (item.date === selectedDate) displayItems.push({ ...item, renderMode: 'standard', sortTime: item.time });
     });
 
-    // Sort by computed time
     return displayItems.sort((a, b) => a.sortTime.localeCompare(b.sortTime));
   }, [items, selectedDate, selectedPassenger]);
 
 
+  // --- ERROR VIEWS ---
   if (errorState?.code === 'missing-index') {
     return (
       <div className="flex flex-col items-center justify-center py-10 px-6 text-center">
-        <div className="w-12 h-12 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-4">
-          <AlertTriangle size={24} />
-        </div>
+        <div className="w-12 h-12 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-4"><AlertTriangle size={24} /></div>
         <h3 className="font-bold text-ink mb-2">Setup Required</h3>
-        <p className="text-gray-500 text-sm mb-4 max-w-xs">
-          Please check your browser console and click the Firebase link to create the required index.
-        </p>
-        <Button onClick={handleRetry} className="py-2 h-auto text-sm">
-          <RefreshCw size={16} /> Retry
-        </Button>
+        <p className="text-gray-500 text-sm mb-4 max-w-xs">Please check your browser console and click the Firebase link.</p>
+        <Button onClick={handleRetry} className="py-2 h-auto text-sm"><RefreshCw size={16} /> Retry</Button>
       </div>
     );
   }
-
-  // Permission Error View
   if (errorState?.code === 'permission-denied') {
       return (
           <div className="flex flex-col items-center justify-center py-20 px-6 opacity-50">
              <div className="text-4xl mb-4 text-center"><Lock size={48} /></div>
              <h3 className="font-bold text-lg mb-2 text-center">Schedule Restricted</h3>
-             <p className="text-center text-sm max-w-[200px] mb-6">
-                 This schedule is currently private or restricted by security rules.
-             </p>
+             <p className="text-center text-sm max-w-[200px] mb-6">This schedule is currently private or restricted by security rules.</p>
              <Button variant="secondary" onClick={logout} className="py-2 text-xs">Logout</Button>
           </div>
       );
@@ -490,16 +305,9 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
         <div className="flex items-center">
              <div className="flex-1 overflow-x-auto flex gap-3 px-4 pb-4 pt-4 no-scrollbar snap-x">
                 {allDates.map(date => {
-                    const d = new Date(date + 'T00:00:00'); // Force local midnight
+                    const d = new Date(date + 'T00:00:00');
                     const isSelected = date === selectedDate;
-                    const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-                    const dayNum = d.getDate();
-
-                    const hasPlans = items.some(i => 
-                        i.date === date || 
-                        i.endDate === date ||
-                        (i.type === 'flight' && i.flightDetails?.arrivalDate === date)
-                    );
+                    const hasPlans = items.some(i => i.date === date || i.endDate === date || (i.type === 'flight' && i.flightDetails?.arrivalDate === date));
 
                     return (
                     <button 
@@ -511,23 +319,16 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                             : 'bg-white border-[#E0E5D5] text-gray-400 hover:border-brand/50 hover:scale-105'
                         }`}
                     >
-                        <span className="text-xs font-bold uppercase tracking-wide">{dayName}</span>
-                        <span className={`text-2xl font-black font-rounded ${isSelected ? 'text-white' : 'text-ink'}`}>{dayNum}</span>
-                        {/* Dot indicator if items exist */}
-                        {hasPlans && (
-                        <div className={`w-1.5 h-1.5 rounded-full mt-1 ${isSelected ? 'bg-white' : 'bg-brand'}`}></div>
-                        )}
+                        <span className="text-xs font-bold uppercase tracking-wide">{d.toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                        <span className={`text-2xl font-black font-rounded ${isSelected ? 'text-white' : 'text-ink'}`}>{d.getDate()}</span>
+                        {hasPlans && (<div className={`w-1.5 h-1.5 rounded-full mt-1 ${isSelected ? 'bg-white' : 'bg-brand'}`}></div>)}
                     </button>
                     );
                 })}
             </div>
-            {/* Edit Trip Settings Button */}
             <div className="pr-4 pl-2">
                 <button 
-                    onClick={() => {
-                        setEditDateRange({ start: trip.startDate, end: trip.endDate });
-                        setIsEditingSettings(true);
-                    }}
+                    onClick={() => setIsEditingSettings(true)}
                     className="w-12 h-12 rounded-full bg-white border-2 border-[#E0E5D5] flex items-center justify-center text-gray-400 hover:text-brand hover:border-brand transition-colors shadow-sm"
                 >
                     <Settings size={20} />
@@ -576,7 +377,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                </div>
                <h3 className="font-bold text-ink text-lg font-rounded">Free Day!</h3>
                <p className="text-gray-400 text-sm mb-6 max-w-[200px]">No plans yet for {new Date(selectedDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long'})} for {selectedPassenger === 'all' ? 'everyone' : selectedPassenger.split('@')[0]}.</p>
-               <Button onClick={() => setIsAdding(true)} variant="secondary" className="!py-2 !px-4 text-sm">
+               <Button onClick={() => { setEditingItem(null); setIsAdding(true); }} variant="secondary" className="!py-2 !px-4 text-sm">
                  <Plus size={16} /> Add Activity
                </Button>
              </div>
@@ -590,10 +391,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                   
                   // --- FLIGHT CARD ---
                   if (item.renderMode === 'flight_dep' || item.renderMode === 'flight_arr') {
-                    // Logic mostly same as before for visual rendering
-                    const isDep = item.renderMode === 'flight_dep';
                     const statusText = item.flightDetails?.status || 'Scheduled';
-                    // ... (Status styling logic)
                     let statusColorClass = 'text-gray-500';
                     let statusDotClass = 'bg-gray-400';
                     let statusBgClass = 'bg-gray-50 border-gray-100';
@@ -615,12 +413,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                                       <span className="text-sm tracking-widest font-rounded">BOARDING PASS</span>
                                     </div>
                                     <div className="flex flex-wrap justify-end gap-1.5 max-w-[65%]">
-                                        {(item.participants || []).map((email) => (
-                                            <div key={email} className="flex items-center gap-1.5 bg-white pl-1 pr-2 py-1 rounded-full border border-brand/10 shadow-sm">
-                                                <div className="w-5 h-5 rounded-full bg-brand text-white flex items-center justify-center text-[9px] font-bold uppercase">{email[0]}</div>
-                                                <span className="text-[10px] font-bold text-ink leading-none">{email.split('@')[0]}</span>
-                                            </div>
-                                        ))}
+                                        <AvatarPile emails={item.participants || []} />
                                     </div>
                                 </div>
                                 <div className="p-5">
@@ -774,241 +567,40 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
         </div>
       )}
 
-      {/* --- READ-ONLY DETAIL POPUP (Google Calendar Style) --- */}
-      {viewingItem && !isAdding && (
-          <div className="fixed inset-0 bg-ink/20 z-[100] flex items-end sm:items-center justify-center backdrop-blur-sm sm:p-4" onClick={() => setViewingItemId(null)}>
-              <div 
-                  className="bg-white w-full max-w-md max-h-[90dvh] rounded-t-3xl sm:rounded-3xl shadow-xl flex flex-col animate-in slide-in-from-bottom-10 overflow-hidden pb-[env(safe-area-inset-bottom)]"
-                  onClick={e => e.stopPropagation()} 
-              >
-                  {/* Header - Matches Edit Modal Style */}
-                  <div className="p-4 border-b border-[#E0E5D5] flex justify-between items-center bg-[#F7F4EB]">
-                     <h3 className="font-bold text-lg font-rounded">Activity Details</h3>
-                     <button onClick={() => setViewingItemId(null)} className="w-8 h-8 rounded-full bg-white border border-[#E0E5D5] flex items-center justify-center text-gray-500 hover:text-red-500 hover:border-red-200 transition-colors">
-                        <X size={18} />
-                     </button>
-                  </div>
+      {/* --- MODALS --- */}
+      
+      <ScheduleViewModal 
+        item={viewingItem} 
+        onClose={() => setViewingItemId(null)}
+        onEdit={handleEditFromView}
+      />
 
-                  {/* Body Content */}
-                  <div className="p-6 overflow-y-auto flex-1 no-scrollbar flex flex-col gap-6">
-                       
-                       {/* Header Info Block */}
-                       <div className="flex items-start gap-4">
-                           <div className="bg-brand/10 p-4 rounded-2xl text-brand flex items-center justify-center">
-                               <TypeIcon type={viewingItem.type} />
-                           </div>
-                           <div className="flex-1">
-                               <h2 className="text-2xl font-bold font-rounded text-ink leading-tight mb-2">{viewingItem.title}</h2>
-                               <div className="flex flex-col gap-1">
-                                   <div className="flex items-center gap-2 text-sm font-bold text-gray-500">
-                                       <Calendar size={14} />
-                                       {new Date(viewingItem.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric'})}
-                                   </div>
-                                   <div className="flex items-center gap-2 text-sm font-bold text-gray-500">
-                                       <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-300 flex items-center justify-center text-[8px] font-mono">L</div>
-                                       {viewingItem.time}
-                                       {viewingItem.endTime && ` - ${viewingItem.endTime}`}
-                                   </div>
-                               </div>
-                           </div>
-                       </div>
-
-                       {/* Location */}
-                       {viewingItem.locationLink && (
-                           <a href={viewingItem.locationLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-4 rounded-2xl bg-blue-50/50 border border-blue-100 hover:bg-blue-50 transition-colors group">
-                               <div className="bg-white p-2 rounded-full text-blue-500 shadow-sm">
-                                  <MapPin size={20} />
-                               </div>
-                               <div className="flex-1 overflow-hidden">
-                                   <div className="text-sm font-bold text-ink truncate">Open in Google Maps</div>
-                                   <div className="text-xs text-blue-500 truncate underline">{viewingItem.locationLink}</div>
-                               </div>
-                               <ExternalLink size={16} className="text-blue-300 group-hover:text-blue-500" />
-                           </a>
-                       )}
-
-                       {/* Notes */}
-                       {viewingItem.notes && (
-                           <div className="bg-gray-50 rounded-2xl p-4 border border-dashed border-gray-200">
-                               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Notes</div>
-                               <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{viewingItem.notes}</p>
-                           </div>
-                       )}
-                       
-                       {/* Participants */}
-                       <div className="">
-                           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                <Users size={12} /> Who's Going
-                           </div>
-                           <div className="flex flex-wrap gap-2">
-                               {(viewingItem.participants || []).map(email => (
-                                   <div key={email} className="pl-1 pr-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-bold text-gray-600 flex items-center gap-2 shadow-sm">
-                                       <div className="w-6 h-6 rounded-full bg-brand text-white flex items-center justify-center text-[9px]">
-                                            {email[0]}
-                                       </div>
-                                       {email.split('@')[0]}
-                                   </div>
-                               ))}
-                           </div>
-                       </div>
-                  </div>
-
-                  {/* Footer - Matches Edit Modal Style */}
-                  <div className="p-4 border-t border-[#E0E5D5] bg-[#F7F4EB]">
-                     <Button onClick={() => handleEditFromView(viewingItem)} className="w-full">
-                        <Edit2 size={18} /> Edit Activity
-                     </Button>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* --- ADD/EDIT ACTIVITY MODAL --- */}
       {isAdding && (
-        <div className="fixed inset-0 bg-ink/20 z-[100] flex items-end sm:items-center justify-center backdrop-blur-sm sm:p-4">
-           <div className="bg-white w-full max-w-md max-h-[90dvh] h-auto rounded-t-3xl sm:rounded-3xl shadow-xl flex flex-col animate-in slide-in-from-bottom-10 overflow-hidden pb-[env(safe-area-inset-bottom)]">
-              
-              <div className="p-4 border-b border-[#E0E5D5] flex justify-between items-center bg-[#F7F4EB]">
-                 <h3 className="font-bold text-lg font-rounded">{editingId ? 'Edit Plan' : 'New Plan'}</h3>
-                 <button onClick={() => setIsAdding(false)} className="w-8 h-8 rounded-full bg-white border border-[#E0E5D5] flex items-center justify-center text-gray-500 hover:text-red-500 hover:border-red-200 transition-colors">
-                    <X size={18} />
-                 </button>
-              </div>
-
-              <div className="p-4 overflow-y-auto flex-1 no-scrollbar">
-                  <form id="schedule-form" onSubmit={handleAddItem} className="flex flex-col gap-4">
-                     
-                     <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                        {(['sightseeing', 'food', 'transport', 'hotel', 'flight'] as ScheduleType[]).map(t => (
-                           <button 
-                             key={t}
-                             type="button"
-                             onClick={() => setNewItem({ ...newItem, type: t })}
-                             className={`flex-shrink-0 px-4 py-2 rounded-full border-2 text-sm font-bold flex items-center gap-2 transition-all ${
-                               newItem.type === t 
-                               ? 'bg-brand text-white border-brand shadow-md' 
-                               : 'bg-white text-gray-500 border-[#E0E5D5] hover:border-brand/50'
-                             }`}
-                           >
-                              <TypeIcon type={t} />
-                              <span className="capitalize">{t}</span>
-                           </button>
-                        ))}
-                     </div>
-
-                     {newItem.type === 'flight' ? (
-                         <div className="grid grid-cols-2 gap-4">
-                            <Input label="Departure Date" type="date" required value={newItem.date} onChange={e => setNewItem({ ...newItem, date: e.target.value })} />
-                            <Input label="Departure Time" type="time" required value={newItem.time} onChange={e => setNewItem({ ...newItem, time: e.target.value })} />
-                         </div>
-                     ) : (
-                        <>
-                            <div className="grid grid-cols-2 gap-3">
-                                <Input label="Start Date" type="date" required value={newItem.date} onChange={e => setNewItem({ ...newItem, date: e.target.value })} />
-                                <Input label="Start Time" type="time" required value={newItem.time} onChange={e => setNewItem({ ...newItem, time: e.target.value })} />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3 bg-gray-50 p-2 rounded-xl border border-dashed border-gray-200">
-                                <Input label="End Date" type="date" value={newItem.endDate} onChange={e => setNewItem({ ...newItem, endDate: e.target.value })} />
-                                <Input label="End Time" type="time" value={newItem.endTime || ''} onChange={e => setNewItem({ ...newItem, endTime: e.target.value })} />
-                            </div>
-                        </>
-                     )}
-
-                     {newItem.type === 'flight' ? (
-                        <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 flex flex-col gap-3">
-                           <div className="text-xs font-bold text-blue-400 uppercase tracking-widest flex items-center gap-2 mb-1"><Plane size={14}/> Flight Details</div>
-                           <div className="grid grid-cols-2 gap-3">
-                              <Input label="Flight #" placeholder="AA123" value={flightData.flightNumber} onChange={e => setFlightData({...flightData, flightNumber: e.target.value})} />
-                              <Input label="Seat" placeholder="12A" value={flightData.seat} onChange={e => setFlightData({...flightData, seat: e.target.value})} />
-                           </div>
-                           <div className="grid grid-cols-2 gap-3">
-                              <Input label="From (Code)" placeholder="SFO" maxLength={3} className="uppercase" value={flightData.origin} onChange={e => setFlightData({...flightData, origin: e.target.value.toUpperCase()})} />
-                              <Input label="To (Code)" placeholder="JFK" maxLength={3} className="uppercase" value={flightData.destination} onChange={e => setFlightData({...flightData, destination: e.target.value.toUpperCase()})} />
-                           </div>
-                           <div className="grid grid-cols-2 gap-3 pt-2 border-t border-blue-200 border-dashed">
-                               <Input label="Arrival Date" type="date" value={flightData.arrivalDate} onChange={e => setFlightData({...flightData, arrivalDate: e.target.value})} />
-                               <Input label="Arrival Time" type="time" value={flightData.arrivalTime} onChange={e => setFlightData({...flightData, arrivalTime: e.target.value})} />
-                           </div>
-                        </div>
-                     ) : (
-                        <Input label="Activity Name" placeholder="e.g. Visit Tokyo Tower" required value={newItem.title} onChange={e => setNewItem({ ...newItem, title: e.target.value })} />
-                     )}
-
-                     <Input 
-                        label="Location Link (Google Maps)"
-                        placeholder="https://maps.google.com/..."
-                        value={newItem.locationLink || ''} 
-                        onChange={e => setNewItem({ ...newItem, locationLink: e.target.value })}
-                     />
-
-                     <Input 
-                        label="Notes"
-                        placeholder="Details, reservation #..."
-                        value={newItem.notes} 
-                        onChange={e => setNewItem({ ...newItem, notes: e.target.value })}
-                     />
-                     
-                     <div className="space-y-2">
-                       <label className="text-sm font-bold text-gray-500 ml-3 uppercase tracking-wider text-[10px]">Who's Going?</label>
-                       <div className="flex flex-wrap gap-2">
-                          <button 
-                            type="button"
-                            onClick={() => setNewItem({ ...newItem, participants: trip.allowedEmails })}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${newItem.participants?.length === trip.allowedEmails.length ? 'bg-ink text-white border-ink' : 'bg-white text-gray-400 border-dashed border-gray-300'}`}
-                          >
-                             Everyone
-                          </button>
-                          {trip.allowedEmails.map(email => {
-                            const isSelected = newItem.participants?.includes(email);
-                            return (
-                                <button 
-                                key={email} type="button" onClick={() => toggleParticipant(email)}
-                                className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${isSelected ? 'bg-brand/10 text-brand border-brand' : 'bg-white text-gray-400 border-gray-100'}`}
-                                >
-                                {email.split('@')[0]}
-                                </button>
-                            );
-                          })}
-                       </div>
-                     </div>
-                     <div className="h-4"></div>
-                  </form>
-              </div>
-
-              <div className="p-4 border-t border-[#E0E5D5] bg-[#F7F4EB] flex gap-3">
-                 {editingId && (
-                     <button type="button" onClick={handleDeleteItem} className="w-12 h-12 rounded-full border-2 border-red-200 text-red-500 flex items-center justify-center hover:bg-red-50 transition-colors"><Trash2 size={20} /></button>
-                 )}
-                 <Button type="submit" form="schedule-form" className="flex-1">
-                    {editingId ? 'Save Changes' : 'Add to Schedule'}
-                 </Button>
-              </div>
-
-           </div>
-        </div>
+          <ScheduleEditModal 
+            trip={trip}
+            itemToEdit={editingItem}
+            selectedDate={selectedDate}
+            onSave={handleSaveItem}
+            onDelete={handleDeleteItem}
+            onClose={() => { setIsAdding(false); setEditingItem(null); }}
+          />
       )}
- <button
-        onClick={() => setIsAdding(true)}
+
+      {isEditingSettings && (
+          <TripSettingsModal 
+            trip={trip} 
+            onSave={handleSaveSettings}
+            onClose={() => setIsEditingSettings(false)}
+          />
+      )}
+
+      {/* Floating Add Button */}
+      <button
+        onClick={() => { setEditingItem(null); setIsAdding(true); }}
         className="fixed bottom-24 right-4 w-14 h-14 bg-brand text-white rounded-full shadow-soft hover:shadow-soft-hover hover:scale-105 active:scale-95 transition-all flex items-center justify-center z-40"
       >
         <Plus size={28} />
       </button>
-      {/* --- EDIT SETTINGS MODAL --- */}
-      {isEditingSettings && (
-         <div className="fixed inset-0 bg-ink/50 z-[60] flex items-center justify-center backdrop-blur-sm p-4">
-            <Card className="w-full max-w-sm">
-                <h3 className="font-bold text-lg mb-4">Trip Settings</h3>
-                <form onSubmit={handleSaveSettings} className="flex flex-col gap-4">
-                    <Input label="Start Date" type="date" value={editDateRange.start} onChange={e => setEditDateRange({...editDateRange, start: e.target.value})} />
-                    <Input label="End Date" type="date" value={editDateRange.end} onChange={e => setEditDateRange({...editDateRange, end: e.target.value})} />
-                    <div className="flex gap-2 mt-2">
-                        <Button type="button" variant="secondary" onClick={() => setIsEditingSettings(false)} className="flex-1">Cancel</Button>
-                        <Button type="submit" disabled={savingSettings} className="flex-1">{savingSettings ? 'Saving...' : 'Save'}</Button>
-                    </div>
-                </form>
-            </Card>
-         </div>
-      )}
 
     </div>
   );
