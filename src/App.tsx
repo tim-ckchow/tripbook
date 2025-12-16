@@ -20,6 +20,9 @@ const AppContent: React.FC = () => {
   
   const [currentTab, setCurrentTab] = useState<AppTab>(AppTab.Schedule);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  
+  // New state to control initial sub-tab in Bookings
+  const [bookingsInitialTab, setBookingsInitialTab] = useState<'flight' | 'hotel' | 'transport' | 'general' | undefined>(undefined);
 
   useEffect(() => {
     const handleStatusChange = () => setIsOffline(!navigator.onLine);
@@ -96,6 +99,13 @@ const AppContent: React.FC = () => {
       );
   }
 
+  const handleTabChange = (tab: AppTab, subTab?: any) => {
+      if (subTab && tab === AppTab.Bookings) {
+          setBookingsInitialTab(subTab);
+      }
+      setCurrentTab(tab);
+  };
+
   // View: Trip Detail (Tabs)
   return (
     <div className="relative">
@@ -106,8 +116,8 @@ const AppContent: React.FC = () => {
       />
       
       <Screen>
-        {currentTab === AppTab.Schedule && <ScheduleTab trip={trip} onTabChange={setCurrentTab} />}
-        {currentTab === AppTab.Bookings && <BookingsTab trip={trip} />}
+        {currentTab === AppTab.Schedule && <ScheduleTab trip={trip} onTabChange={handleTabChange} />}
+        {currentTab === AppTab.Bookings && <BookingsTab trip={trip} initialTab={bookingsInitialTab} />}
         {currentTab === AppTab.Members && <MembersTab trip={trip} onTripExit={() => setTripId(null)} />}
         
         {/* Placeholders for other tabs */}

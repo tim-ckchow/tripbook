@@ -3,13 +3,25 @@ import { db, firebase } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { Trip, ScheduleItem, FlightDetails } from '../../types';
 import { Card, Button, Input } from '../../components/ui/Layout';
-import { Plane, Map, Bus, FileText, User, Luggage, Clock, Tag, ExternalLink, X, Plus, Trash2, CheckCircle, Lock } from 'lucide-react';
+import { Plane, Map, Bus, FileText, User, Luggage, Clock, Tag, ExternalLink, X, Plus, Trash2, CheckCircle, Lock, Edit2, MapPin, Users } from 'lucide-react';
 
 interface BookingsTabProps {
   trip: Trip;
+  initialTab?: 'flight' | 'hotel' | 'transport' | 'general';
 }
 
 type SubTab = 'flight' | 'hotel' | 'transport' | 'general';
+
+const TypeIcon: React.FC<{ type: any }> = ({ type }) => {
+    switch (type) {
+        case 'sightseeing': return <MapPin className="text-blue-500" size={18} />;
+        case 'food': return <Tag className="text-orange-500" size={18} />;
+        case 'hotel': return <Map className="text-purple-500" size={18} />;
+        case 'transport': return <Bus className="text-green-500" size={18} />;
+        case 'flight': return <Plane className="text-brand" size={18} />;
+        default: return <FileText className="text-gray-500" size={18} />;
+    }
+};
 
 const SubTabButton: React.FC<{ active: boolean; label: string; icon: any; onClick: () => void }> = ({ active, label, icon: Icon, onClick }) => (
   <button 
@@ -47,7 +59,7 @@ function formatDateRange(start: string, end?: string) {
     return d1;
 }
 
-export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
+export const BookingsTab: React.FC<BookingsTabProps> = ({ trip, initialTab }) => {
   const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState<SubTab>('flight');
   const [items, setItems] = useState<ScheduleItem[]>([]);
@@ -55,6 +67,9 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
   const [errorState, setErrorState] = useState<{ code: string; message: string } | null>(null);
   const [selectedPassenger, setSelectedPassenger] = useState<string | 'all'>('all');
   
+  // Viewing State (Read Only)
+  const [viewingItemId, setViewingItemId] = useState<string | null>(null);
+
   // Editing State
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -66,6 +81,10 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
       seat: '', terminal: '', gate: '', bookingReference: '', 
       checkInTime: '', baggageAllowanceKg: '', arrivalDate: ''
   });
+
+  useEffect(() => {
+      if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
 
   useEffect(() => {
     setLoading(true);
@@ -96,8 +115,13 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
     if (selectedPassenger === 'all') return items;
     return items.filter(item => !item.participants || item.participants.includes(selectedPassenger));
   }, [items, selectedPassenger]);
+  
+  const viewingItem = useMemo(() => {
+      return items.find(i => i.id === viewingItemId);
+  }, [items, viewingItemId]);
 
   const handleAddNew = () => {
+    setViewingItemId(null);
     setEditingId(null);
     setEditForm({
       type: activeTab === 'general' ? 'sightseeing' : activeTab,
@@ -107,7 +131,8 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
       endTime: '',
       participants: trip.allowedEmails,
       title: '',
-      notes: ''
+      notes: '',
+      locationLink: ''
     });
     setFlightForm({
       flightNumber: '', origin: '', destination: '', arrivalTime: '', 
@@ -127,7 +152,8 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
           endTime: item.endTime || '',
           participants: item.participants || trip.allowedEmails,
           notes: item.notes,
-          title: item.title
+          title: item.title,
+          locationLink: item.locationLink
       });
       if (item.type === 'flight' && item.flightDetails) {
           setFlightForm({ ...item.flightDetails });
@@ -171,6 +197,7 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
           }
 
           setIsEditing(false);
+          // If editing from view mode, we keep view mode active (viewingItem will refresh via useMemo)
       } catch (err) {
           console.error(err);
           alert("Failed to save booking details. Check permissions.");
@@ -183,6 +210,20 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
       setEditForm({ ...editForm, participants: current.filter(e => e !== email) });
     } else {
       setEditForm({ ...editForm, participants: [...current, email] });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!editingId) return;
+    if (confirm("Delete this booking?")) {
+        try {
+            await db.collection(`trips/${trip.id}/schedule`).doc(editingId).delete();
+            setIsEditing(false);
+            setViewingItemId(null);
+        } catch(err) {
+            console.error(err);
+            alert("Failed to delete.");
+        }
     }
   };
 
@@ -247,7 +288,7 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
           )}
 
           {activeTab === 'flight' && filteredItems.map(item => (
-              <div key={item.id} className="relative group cursor-pointer" onClick={() => handleEdit(item)}>
+              <div key={item.id} className="relative group cursor-pointer" onClick={() => setViewingItemId(item.id)}>
                   {/* TICKET VISUAL */}
                   <div className="bg-white rounded-3xl shadow-soft overflow-hidden border border-[#E0E5D5]">
                       {/* Top Strip */}
@@ -286,19 +327,6 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
                                     <div className="text-[9px] uppercase text-gray-400 font-bold tracking-wider mb-0.5">Seat</div>
                                     <div className="font-bold text-ink text-lg">{item.flightDetails?.seat || 'ANY'}</div>
                                 </div>
-                                
-                                <div>
-                                    <div className="text-[9px] uppercase text-gray-400 font-bold tracking-wider mb-0.5">Boarding</div>
-                                    <div className="font-bold text-ink flex items-center gap-1">
-                                        <Clock size={12} className="text-brand"/> {item.flightDetails?.checkInTime || '-'}
-                                    </div>
-                                </div>
-                                <div className="col-span-2">
-                                    <div className="text-[9px] uppercase text-gray-400 font-bold tracking-wider mb-0.5">Baggage Allow.</div>
-                                    <div className="font-bold text-ink flex items-center gap-1">
-                                        <Luggage size={12} className="text-gray-400"/> {item.flightDetails?.baggageAllowanceKg ? `${item.flightDetails.baggageAllowanceKg}kg` : 'Check Airline'}
-                                    </div>
-                                </div>
                           </div>
 
                           {/* Reference & Footer */}
@@ -330,7 +358,7 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
 
           {/* Placeholder for other tabs */}
           {activeTab !== 'flight' && filteredItems.map(item => (
-              <Card key={item.id} onClick={() => handleEdit(item)}>
+              <Card key={item.id} onClick={() => setViewingItemId(item.id)}>
                   <div className="flex justify-between items-start">
                       <div>
                         <h4 className="font-bold text-lg">{item.title}</h4>
@@ -345,6 +373,11 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
                          {item.endTime && ` - ${item.endTime}`}
                       </span>
                   </div>
+                  {item.locationLink && (
+                     <div className="text-xs text-blue-500 flex items-center gap-1 font-bold mt-2">
+                         <MapPin size={12} /> Map Link
+                     </div>
+                  )}
                   <div className="text-sm text-gray-500 mt-2">{item.notes || 'No details'}</div>
               </Card>
           ))}
@@ -357,6 +390,113 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
       >
         <Plus size={28} />
       </button>
+
+      {/* --- READ-ONLY DETAIL POPUP --- */}
+      {viewingItemId && viewingItem && !isEditing && (
+          <div className="fixed inset-0 bg-ink/20 z-[100] flex items-end sm:items-center justify-center backdrop-blur-sm sm:p-4" onClick={() => setViewingItemId(null)}>
+              <div 
+                  className="bg-white w-full max-w-md max-h-[90dvh] rounded-t-3xl sm:rounded-3xl shadow-xl flex flex-col animate-in slide-in-from-bottom-10 overflow-hidden pb-[env(safe-area-inset-bottom)]"
+                  onClick={e => e.stopPropagation()} 
+              >
+                  {/* Header */}
+                  <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                     <h3 className="font-bold text-lg font-rounded">Booking Details</h3>
+                     <button onClick={() => setViewingItemId(null)} className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 transition-colors hover:bg-gray-100">
+                        <X size={18} />
+                     </button>
+                  </div>
+
+                  {/* Body */}
+                  <div className="p-6 overflow-y-auto flex-1 no-scrollbar flex flex-col gap-6">
+                       {/* Header Info */}
+                       <div className="flex items-start gap-4">
+                           <div className="bg-brand/10 p-4 rounded-2xl text-brand flex items-center justify-center">
+                               <TypeIcon type={viewingItem.type} />
+                           </div>
+                           <div className="flex-1">
+                               <h2 className="text-2xl font-bold font-rounded text-ink leading-tight mb-2">{viewingItem.title}</h2>
+                               <div className="flex flex-col gap-1">
+                                   <div className="flex items-center gap-2 text-sm font-bold text-gray-500">
+                                       <Clock size={14} />
+                                       {new Date(viewingItem.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric'})}
+                                   </div>
+                                    <div className="text-sm font-bold text-gray-500">
+                                       {viewingItem.time}
+                                    </div>
+                               </div>
+                           </div>
+                       </div>
+                       
+                       {/* Flight specific info if applicable */}
+                       {viewingItem.type === 'flight' && (
+                           <div className="bg-gray-50 p-4 rounded-xl border border-dashed border-gray-200 grid grid-cols-2 gap-4">
+                               {/* ... existing fields ... */}
+                               <div>
+                                   <div className="text-[10px] uppercase text-gray-400 font-bold">Booking Ref</div>
+                                   <div className="font-mono font-bold text-ink">{viewingItem.flightDetails?.bookingReference || 'N/A'}</div>
+                               </div>
+                               <div>
+                                   <div className="text-[10px] uppercase text-gray-400 font-bold">Seat</div>
+                                   <div className="font-bold text-ink">{viewingItem.flightDetails?.seat || 'Any'}</div>
+                               </div>
+                               <div>
+                                   <div className="text-[10px] uppercase text-gray-400 font-bold">Terminal</div>
+                                   <div className="font-bold text-ink">{viewingItem.flightDetails?.terminal || '-'}</div>
+                               </div>
+                               <div>
+                                   <div className="text-[10px] uppercase text-gray-400 font-bold">Gate</div>
+                                   <div className="font-bold text-ink">{viewingItem.flightDetails?.gate || '-'}</div>
+                               </div>
+                           </div>
+                       )}
+
+                       {viewingItem.locationLink && (
+                           <a href={viewingItem.locationLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-4 rounded-2xl bg-blue-50/50 border border-blue-100 hover:bg-blue-50 transition-colors group">
+                               <div className="bg-white p-2 rounded-full text-blue-500 shadow-sm">
+                                  <MapPin size={20} />
+                               </div>
+                               <div className="flex-1 overflow-hidden">
+                                   <div className="text-sm font-bold text-ink truncate">Open in Google Maps</div>
+                                   <div className="text-xs text-blue-500 truncate underline">{viewingItem.locationLink}</div>
+                               </div>
+                               <ExternalLink size={16} className="text-blue-300 group-hover:text-blue-500" />
+                           </a>
+                       )}
+
+                       {viewingItem.notes && (
+                           <div className="bg-gray-50 rounded-2xl p-4 border border-dashed border-gray-200">
+                               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Notes</div>
+                               <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{viewingItem.notes}</p>
+                           </div>
+                       )}
+                       
+                       {/* Participants */}
+                       <div className="">
+                           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <Users size={12} /> Who's Going
+                           </div>
+                           <div className="flex flex-wrap gap-2">
+                               {(viewingItem.participants || []).map(email => (
+                                   <div key={email} className="pl-1 pr-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-bold text-gray-600 flex items-center gap-2 shadow-sm">
+                                       <div className="w-6 h-6 rounded-full bg-brand text-white flex items-center justify-center text-[9px]">
+                                            {email[0]}
+                                       </div>
+                                       {email.split('@')[0]}
+                                   </div>
+                               ))}
+                           </div>
+                       </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="p-4 border-t border-gray-100 bg-gray-50">
+                     <Button onClick={() => handleEdit(viewingItem)} className="w-full">
+                        <Edit2 size={18} /> Edit Booking
+                     </Button>
+                  </div>
+              </div>
+          </div>
+      )}
 
       {/* --- EDIT/ADD MODAL --- */}
       {isEditing && (
@@ -433,6 +573,13 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
                              </div>
                          </>
                       )}
+                      
+                      <Input 
+                        label="Location Link (Google Maps)" 
+                        placeholder="https://maps.google.com/..."
+                        value={editForm.locationLink || ''} 
+                        onChange={e => setEditForm({...editForm, locationLink: e.target.value})} 
+                      />
 
                       <Input 
                         label="Notes / Address" 
@@ -459,7 +606,10 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip }) => {
                   </form>
               </div>
 
-              <div className="p-4 border-t border-gray-100 bg-gray-50">
+              <div className="p-4 border-t border-gray-100 bg-gray-50 flex gap-3">
+                  {editingId && (
+                     <button type="button" onClick={handleDelete} className="w-12 h-12 rounded-full border-2 border-red-200 text-red-500 flex items-center justify-center hover:bg-red-50 transition-colors"><Trash2 size={20} /></button>
+                  )}
                   <Button type="submit" form="booking-form" className="w-full">
                       {editingId ? 'Save Changes' : 'Add Booking'}
                   </Button>
