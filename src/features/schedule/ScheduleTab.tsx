@@ -4,7 +4,7 @@ import { db, firebase } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { Trip, ScheduleItem, ScheduleType, FlightDetails, AppTab } from '../../types';
 import { Card, Button, Input } from '../../components/ui/Layout';
-import { MapPin, Coffee, Bed, Bus, Plus, X, Plane, Users, AlertTriangle, RefreshCw, Calendar, Sparkles, Settings, Trash2, ArrowRight, Lock } from 'lucide-react';
+import { MapPin, Coffee, Bed, Bus, Plus, X, Plane, Users, AlertTriangle, RefreshCw, Calendar, Sparkles, Settings, Trash2, ArrowRight, Lock, LogIn, LogOut } from 'lucide-react';
 
 interface ScheduleTabProps {
   trip: Trip;
@@ -86,6 +86,18 @@ function getDaysArray(start: string, end: string) {
     return arr;
 }
 
+function formatDateShort(dateStr: string) {
+    if(!dateStr) return '';
+    const date = new Date(dateStr + 'T00:00:00');
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// Extends ScheduleItem to include render context
+type DisplayItem = ScheduleItem & { 
+    renderMode: 'flight_dep' | 'flight_arr' | 'hotel_in' | 'hotel_out' | 'standard';
+    sortTime: string;
+};
+
 export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) => {
   const { logout } = useAuth();
   const [items, setItems] = useState<ScheduleItem[]>([]);
@@ -107,10 +119,11 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
   const allDates = useMemo(() => {
     const range = getDaysArray(trip.startDate, trip.endDate);
     
-    // Also include any dates that existing items have (including flight arrivals)
+    // Also include any dates that existing items have (including flight arrivals or hotel checkouts)
     const extraDates = new Set<string>();
     items.forEach(i => {
         if(i.date) extraDates.add(i.date);
+        if(i.endDate) extraDates.add(i.endDate);
         if(i.type === 'flight' && i.flightDetails?.arrivalDate) extraDates.add(i.flightDetails.arrivalDate);
     });
     
@@ -131,7 +144,9 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
   const [newItem, setNewItem] = useState<Partial<ScheduleItem>>({
     type: 'sightseeing',
     date: selectedDate,
+    endDate: selectedDate,
     time: '09:00',
+    endTime: '',
     title: '',
     participants: trip.allowedEmails // Default to everyone
   });
@@ -143,7 +158,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
   // Sync new item date when switching tabs (only if not editing)
   useEffect(() => {
     if (!editingId) {
-      setNewItem(prev => ({ ...prev, date: selectedDate }));
+      setNewItem(prev => ({ ...prev, date: selectedDate, endDate: selectedDate }));
       setFlightData(prev => ({ ...prev, arrivalDate: selectedDate }));
     }
   }, [selectedDate, editingId]);
@@ -220,8 +235,10 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
       title: '', 
       notes: '', 
       type: 'sightseeing',
-      date: selectedDate, // Reset to current view date
+      date: selectedDate, 
+      endDate: selectedDate,
       time: '09:00',
+      endTime: '',
       participants: trip.allowedEmails
     }); 
     setFlightData({ flightNumber: '', origin: 'ABC', destination: 'XYZ', arrivalTime: '', seat: '', arrivalDate: selectedDate });
@@ -244,6 +261,11 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
         };
         // Auto-title if empty
         if (!payload.title) payload.title = `Flight to ${flightData.destination}`;
+        // Flights don't use the standard endDate field usually, but we ensure cleanliness
+        delete payload.endDate; 
+      } else {
+        // Ensure endDate is at least the start date
+        if (!payload.endDate) payload.endDate = payload.date;
       }
 
       if (editingId) {
@@ -276,7 +298,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
   };
 
   const handleItemClick = (item: ScheduleItem) => {
-      if (item.type === 'flight' && onTabChange) {
+      if ((item.type === 'flight' || item.type === 'hotel') && onTabChange) {
           onTabChange(AppTab.Bookings);
       } else {
           openEditModal(item);
@@ -288,7 +310,9 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
       setNewItem({
           type: item.type,
           date: item.date,
+          endDate: item.endDate || item.date,
           time: item.time,
+          endTime: item.endTime || '',
           title: item.title,
           notes: item.notes || '',
           participants: item.participants || []
@@ -317,39 +341,51 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
     }
   };
 
-  // --- FILTER ITEMS FOR SELECTED DATE ---
-  // Show item if:
-  // 1. It is the selected date (Departure or Standard item)
-  // 2. It is a flight arriving on this date (even if departure was earlier)
-  // 3. AND it matches the selected participant (or 'all')
+  // --- FILTER & SORT ITEMS FOR SELECTED DATE ---
   const daysItems = useMemo(() => {
     const filtered = items.filter(item => {
-        // Date Check
-        const isDateMatch = (item.date === selectedDate) || 
-                            (item.type === 'flight' && item.flightDetails?.arrivalDate === selectedDate);
-        if (!isDateMatch) return false;
-
-        // Participant Check
         if (selectedPassenger === 'all') return true;
-        // If participants array exists and has entries, check inclusion.
-        // If empty or undefined, assume it's for everyone.
         if (item.participants && item.participants.length > 0) {
             return item.participants.includes(selectedPassenger);
         }
         return true;
     });
 
-    // Sort items by time relevant to the selected date
-    return filtered.sort((a, b) => {
-        // If it's an arrival entry (flight arriving on selectedDate but departing earlier), use arrivalTime
-        const isArrivalA = a.type === 'flight' && a.flightDetails?.arrivalDate === selectedDate && a.date !== selectedDate;
-        const timeA = isArrivalA ? (a.flightDetails?.arrivalTime || '00:00') : a.time;
+    const displayItems: DisplayItem[] = [];
 
-        const isArrivalB = b.type === 'flight' && b.flightDetails?.arrivalDate === selectedDate && b.date !== selectedDate;
-        const timeB = isArrivalB ? (b.flightDetails?.arrivalTime || '00:00') : b.time;
+    filtered.forEach(item => {
+        // FLIGHTS
+        if (item.type === 'flight') {
+            if (item.date === selectedDate) {
+                displayItems.push({ ...item, renderMode: 'flight_dep', sortTime: item.time });
+            }
+            if (item.flightDetails?.arrivalDate === selectedDate && item.date !== selectedDate) {
+                displayItems.push({ ...item, renderMode: 'flight_arr', sortTime: item.flightDetails.arrivalTime || '00:00' });
+            }
+            return;
+        }
 
-        return timeA.localeCompare(timeB);
+        // HOTELS
+        if (item.type === 'hotel') {
+            if (item.date === selectedDate) {
+                 displayItems.push({ ...item, renderMode: 'hotel_in', sortTime: item.time });
+            }
+            if (item.endDate === selectedDate) {
+                 // Check if same day to allow showing both cards if user configured it that way (e.g. day use)
+                 // But typically checks are distinct. We allow both.
+                 displayItems.push({ ...item, renderMode: 'hotel_out', sortTime: item.endTime || '11:00' });
+            }
+            return;
+        }
+        
+        // STANDARD ITEMS
+        if (item.date === selectedDate) {
+            displayItems.push({ ...item, renderMode: 'standard', sortTime: item.time });
+        }
     });
+
+    // Sort by computed time
+    return displayItems.sort((a, b) => a.sortTime.localeCompare(b.sortTime));
   }, [items, selectedDate, selectedPassenger]);
 
 
@@ -387,7 +423,6 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
   return (
     <div className="pb-24">
       {/* --- DATE SCROLLER --- */}
-      {/* Updated top position to align below floating header with safe area */}
       <div className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-40 -mx-4 mb-2 bg-paper/90 backdrop-blur-sm border-b border-[#E0E5D5]/50 transition-all duration-300">
         <div className="flex items-center">
              <div className="flex-1 overflow-x-auto flex gap-3 px-4 pb-4 pt-4 no-scrollbar snap-x">
@@ -396,6 +431,12 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                     const isSelected = date === selectedDate;
                     const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
                     const dayNum = d.getDate();
+
+                    const hasPlans = items.some(i => 
+                        i.date === date || 
+                        i.endDate === date ||
+                        (i.type === 'flight' && i.flightDetails?.arrivalDate === date)
+                    );
 
                     return (
                     <button 
@@ -409,8 +450,8 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                     >
                         <span className="text-xs font-bold uppercase tracking-wide">{dayName}</span>
                         <span className={`text-2xl font-black font-rounded ${isSelected ? 'text-white' : 'text-ink'}`}>{dayNum}</span>
-                        {/* Dot indicator if items exist (check arrival date too) */}
-                        {items.some(i => i.date === date || (i.type === 'flight' && i.flightDetails?.arrivalDate === date)) && (
+                        {/* Dot indicator if items exist */}
+                        {hasPlans && (
                         <div className={`w-1.5 h-1.5 rounded-full mt-1 ${isSelected ? 'bg-white' : 'bg-brand'}`}></div>
                         )}
                     </button>
@@ -482,28 +523,30 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                 <div className="absolute left-[19px] top-4 bottom-4 w-[2px] bg-[#E0E5D5] rounded-full z-0"></div>
 
                 {daysItems.map((item, index) => {
-                  if (item.type === 'flight') {
-                    const isArrivalEntry = item.flightDetails?.arrivalDate === selectedDate && item.date !== selectedDate;
+                  const uniqueKey = `${item.id}_${item.renderMode}`;
+                  
+                  // --- FLIGHT CARD ---
+                  if (item.renderMode === 'flight_dep' || item.renderMode === 'flight_arr') {
+                    const isArrival = item.renderMode === 'flight_arr';
                     
-                    // --- BOARDING PASS STICKER ---
                     return (
-                      <div key={item.id + (isArrivalEntry ? '_arr' : '')} className="relative z-10 pl-2 cursor-pointer group" onClick={() => handleItemClick(item)}>
-                         <div className={`bg-white rounded-3xl shadow-soft border-2 overflow-hidden group-hover:rotate-1 transition-transform group-hover:shadow-soft-hover ${isArrivalEntry ? 'border-brand/50' : 'border-[#E0E5D5] group-hover:border-brand'}`}>
+                      <div key={uniqueKey} className="relative z-10 pl-2 cursor-pointer group" onClick={() => handleItemClick(item)}>
+                         <div className={`bg-white rounded-3xl shadow-soft border-2 overflow-hidden group-hover:rotate-1 transition-transform group-hover:shadow-soft-hover ${isArrival ? 'border-brand/50' : 'border-[#E0E5D5] group-hover:border-brand'}`}>
                             {/* Header */}
-                            <div className={`p-4 border-b-2 border-dashed flex justify-between items-center ${isArrivalEntry ? 'bg-gray-50 border-gray-200' : 'bg-brand/10 border-brand/20'}`}>
-                                <div className={`flex items-center gap-2 font-bold ${isArrivalEntry ? 'text-gray-500' : 'text-brand'}`}>
-                                  <Plane size={18} className={isArrivalEntry ? 'rotate-90' : ''} />
-                                  <span className="text-sm tracking-widest font-rounded">{isArrivalEntry ? 'ARRIVAL' : 'BOARDING PASS'}</span>
+                            <div className={`p-4 border-b-2 border-dashed flex justify-between items-center ${isArrival ? 'bg-gray-50 border-gray-200' : 'bg-brand/10 border-brand/20'}`}>
+                                <div className={`flex items-center gap-2 font-bold ${isArrival ? 'text-gray-500' : 'text-brand'}`}>
+                                  <Plane size={18} className={isArrival ? 'rotate-90' : ''} />
+                                  <span className="text-sm tracking-widest font-rounded">{isArrival ? 'ARRIVAL' : 'BOARDING PASS'}</span>
                                 </div>
                                 <div className="text-xs font-mono font-bold text-gray-500 bg-white/50 px-2 py-1 rounded">{item.flightDetails?.flightNumber || 'FLIGHT'}</div>
                             </div>
                             {/* Body */}
                             <div className="p-4">
                                 <div className="flex justify-between items-center mb-4">
-                                    <div className={`text-center ${isArrivalEntry ? 'opacity-50' : ''}`}>
+                                    <div className={`text-center ${isArrival ? 'opacity-50' : ''}`}>
                                         <div className="text-3xl font-black text-ink">{item.flightDetails?.origin || 'ORG'}</div>
                                         <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Departs</div>
-                                        <div className={`text-sm font-bold px-2 rounded-full inline-block mt-1 ${isArrivalEntry ? 'text-gray-400' : 'bg-brand/10 text-brand'}`}>
+                                        <div className={`text-sm font-bold px-2 rounded-full inline-block mt-1 ${isArrival ? 'text-gray-400' : 'bg-brand/10 text-brand'}`}>
                                             {item.time}
                                         </div>
                                     </div>
@@ -511,25 +554,19 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                                         <div className="h-[2px] w-full bg-ink relative top-3 border-b border-dashed"></div>
                                         <Plane className="text-ink relative bg-white px-1 rotate-90" size={24} />
                                     </div>
-                                    <div className={`text-center ${!isArrivalEntry ? 'opacity-50' : ''}`}>
+                                    <div className={`text-center ${!isArrival ? 'opacity-50' : ''}`}>
                                         <div className="text-3xl font-black text-ink">{item.flightDetails?.destination || 'DST'}</div>
                                         <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Arrives</div>
-                                        <div className={`text-sm font-bold px-2 rounded-full inline-block mt-1 ${isArrivalEntry ? 'bg-brand/10 text-brand' : 'text-gray-300'}`}>
+                                        <div className={`text-sm font-bold px-2 rounded-full inline-block mt-1 ${isArrival ? 'bg-brand/10 text-brand' : 'text-gray-300'}`}>
                                             {item.flightDetails?.arrivalTime || '--:--'}
                                         </div>
                                     </div>
                                 </div>
-                                
-                                {isArrivalEntry && (
+                                {isArrival && (
                                     <div className="bg-gray-50 rounded-xl p-2 mb-3 text-center text-xs text-gray-500">
                                         Arriving from <span className="font-bold">{item.flightDetails?.origin}</span>
                                     </div>
                                 )}
-                                
-                                <div className="bg-[#F7F4EB] rounded-2xl p-3 mb-3 border border-[#E0E5D5] text-center">
-                                    <div className="text-[10px] text-gray-400 uppercase font-bold">Seat</div>
-                                    <div className="text-lg font-bold text-ink">{item.flightDetails?.seat || '-'}</div>
-                                </div>
                                 <div className="flex justify-between items-center">
                                   <span className="text-xs text-gray-400 font-medium">Passengers</span>
                                   <AvatarPile emails={item.participants || []} />
@@ -540,16 +577,72 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                     );
                   }
 
-                  // --- NOTEBOOK STRIP ---
+                  // --- HOTEL CARD (Check-In or Check-Out) ---
+                  if (item.renderMode === 'hotel_in' || item.renderMode === 'hotel_out') {
+                      const isCheckOut = item.renderMode === 'hotel_out';
+                      const label = isCheckOut ? 'Check Out' : 'Check In';
+                      const time = isCheckOut ? (item.endTime || '11:00') : item.time;
+                      
+                      return (
+                        <div key={uniqueKey} className="relative z-10 flex gap-3 group cursor-pointer" onClick={() => handleItemClick(item)}>
+                            {/* Time Bubble */}
+                            <div className="flex flex-col items-center pt-1">
+                                <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center z-10 shadow-sm transition-transform group-hover:scale-110 ${isCheckOut ? 'bg-white border-red-200 text-red-500' : 'bg-white border-purple-200 text-purple-500'}`}>
+                                    {isCheckOut ? <LogOut size={16} className="ml-0.5" /> : <LogIn size={16} className="mr-0.5" />}
+                                </div>
+                                <div className="mt-1 bg-paper px-1 rounded text-[10px] font-bold text-gray-500 font-mono">
+                                    {time}
+                                </div>
+                            </div>
+
+                            {/* Card Content */}
+                            <div className="flex-1">
+                                <Card className={`!p-4 flex flex-col gap-2 relative overflow-hidden group-hover:-translate-y-1 transition-transform border-2 ${isCheckOut ? 'border-red-100 bg-red-50/30' : 'border-purple-100 bg-purple-50/30'}`}>
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isCheckOut ? 'text-red-400' : 'text-purple-400'}`}>
+                                                {label}
+                                            </div>
+                                            <h4 className="font-bold text-ink text-lg leading-tight font-rounded">{item.title}</h4>
+                                        </div>
+                                        <div className={`p-2 rounded-full ${isCheckOut ? 'bg-red-100 text-red-500' : 'bg-purple-100 text-purple-500'}`}>
+                                            <Bed size={16} />
+                                        </div>
+                                    </div>
+                                    
+                                    {(item.notes || (item.participants && item.participants.length < trip.allowedEmails.length)) && (
+                                        <div className="bg-white/50 rounded-xl p-2 text-sm text-gray-600 border border-black/5 flex flex-col gap-2 mt-1">
+                                            {item.notes && <p className="italic">"{item.notes}"</p>}
+                                            {item.participants && item.participants.length < trip.allowedEmails.length && (
+                                                <div className="flex items-center gap-2 pt-1 border-t border-dashed border-gray-200">
+                                                    <span className="text-[10px] font-bold uppercase text-gray-400">Guests</span>
+                                                    <AvatarPile emails={item.participants} />
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </Card>
+                            </div>
+                        </div>
+                      );
+                  }
+
+                  // --- STANDARD NOTEBOOK STRIP ---
                   return (
-                    <div key={item.id} className="relative z-10 flex gap-3 group cursor-pointer" onClick={() => handleItemClick(item)}>
+                    <div key={uniqueKey} className="relative z-10 flex gap-3 group cursor-pointer" onClick={() => handleItemClick(item)}>
                        {/* Time Bubble */}
                        <div className="flex flex-col items-center pt-1">
                           <div className="w-10 h-10 rounded-full bg-white border-2 border-brand flex items-center justify-center z-10 shadow-sm group-hover:scale-110 transition-transform">
                              <TypeIcon type={item.type} />
                           </div>
-                          <div className="mt-1 bg-paper px-1 rounded text-[10px] font-bold text-gray-500 font-mono">
-                             {item.time}
+                          <div className="mt-1 bg-paper px-1 rounded text-[10px] font-bold text-gray-500 font-mono flex flex-col items-center leading-none py-1 gap-0.5 min-w-[32px]">
+                             <span>{item.time}</span>
+                             {item.endTime && (
+                                 <>
+                                    <span className="text-gray-300">↓</span>
+                                    <span>{item.endTime}</span>
+                                 </>
+                             )}
                           </div>
                        </div>
 
@@ -560,6 +653,14 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                              <div className="absolute top-2 right-[-20px] bg-yellow-100 w-20 h-4 rotate-45 opacity-50"></div>
                              
                              <h4 className="font-bold text-ink text-lg leading-tight font-rounded">{item.title}</h4>
+                             
+                             {/* End Date Indicator (for multi-day non-hotel events) */}
+                             {item.endDate && item.endDate !== item.date && (
+                                <div className="text-[10px] font-bold text-purple-500 flex items-center gap-1 bg-purple-50 px-2 py-1 rounded-full self-start">
+                                    <Calendar size={10} />
+                                    Ends {formatDateShort(item.endDate)}
+                                </div>
+                             )}
                              
                              {(item.notes || (item.participants && item.participants.length < trip.allowedEmails.length)) && (
                                <div className="bg-[#F7F4EB] rounded-xl p-3 text-sm text-gray-600 border border-[#E0E5D5] flex flex-col gap-2">
@@ -620,22 +721,59 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                         ))}
                      </div>
 
-                     <div className="grid grid-cols-2 gap-4">
-                        <Input 
-                            label="Departure Date"
-                            type="date" 
-                            required 
-                            value={newItem.date} 
-                            onChange={e => setNewItem({ ...newItem, date: e.target.value })}
-                        />
-                        <Input 
-                            label="Departure Time"
-                            type="time" 
-                            required 
-                            value={newItem.time} 
-                            onChange={e => setNewItem({ ...newItem, time: e.target.value })}
-                        />
-                     </div>
+                     {/* Date/Time Inputs */}
+                     {newItem.type === 'flight' ? (
+                         <div className="grid grid-cols-2 gap-4">
+                            <Input 
+                                label="Departure Date"
+                                type="date" 
+                                required 
+                                value={newItem.date} 
+                                onChange={e => setNewItem({ ...newItem, date: e.target.value })}
+                            />
+                             <Input 
+                                label="Departure Time"
+                                type="time" 
+                                required 
+                                value={newItem.time} 
+                                onChange={e => setNewItem({ ...newItem, time: e.target.value })}
+                            />
+                         </div>
+                     ) : (
+                        // NON-FLIGHT DATE/TIME BLOCK
+                        <>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Input 
+                                    label="Start Date"
+                                    type="date" 
+                                    required 
+                                    value={newItem.date} 
+                                    onChange={e => setNewItem({ ...newItem, date: e.target.value })}
+                                />
+                                <Input 
+                                    label="Start Time"
+                                    type="time" 
+                                    required 
+                                    value={newItem.time} 
+                                    onChange={e => setNewItem({ ...newItem, time: e.target.value })}
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 bg-gray-50 p-2 rounded-xl border border-dashed border-gray-200">
+                                <Input 
+                                    label="End Date"
+                                    type="date" 
+                                    value={newItem.endDate} 
+                                    onChange={e => setNewItem({ ...newItem, endDate: e.target.value })}
+                                />
+                                <Input 
+                                    label="End Time"
+                                    type="time" 
+                                    value={newItem.endTime || ''} 
+                                    onChange={e => setNewItem({ ...newItem, endTime: e.target.value })}
+                                />
+                            </div>
+                        </>
+                     )}
 
                      {/* DYNAMIC FIELDS BASED ON TYPE */}
                      {newItem.type === 'flight' ? (

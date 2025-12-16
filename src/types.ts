@@ -52,8 +52,10 @@ export interface FlightDetails {
 
 export interface ScheduleItem {
   id: string; // Document ID
-  date: string; // YYYY-MM-DD (Departure Date for flights)
-  time: string; // HH:mm (Departure Time for flights)
+  date: string; // YYYY-MM-DD (Start Date / Departure Date for flights)
+  time: string; // HH:mm (Start Time / Departure Time for flights)
+  endDate?: string; // YYYY-MM-DD (End Date / Check-out Date)
+  endTime?: string; // HH:mm (Optional End Time)
   type: ScheduleType;
   title: string;
   locationLink?: string;
