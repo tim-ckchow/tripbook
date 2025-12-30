@@ -303,8 +303,10 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
 
   return (
     <div className="pb-24">
-      {/* --- DATE SCROLLER --- */}
-      <div className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-40 -mx-4 mb-2 bg-paper/90 backdrop-blur-sm border-b border-gray-300 transition-all duration-300">
+      {/* --- STICKY HEADER --- */}
+      {/* FIXED: Increased top offset and added negative margin to remove the gap above sticky header */}
+      <div className="sticky top-[calc(5.1rem+env(safe-area-inset-top))] z-40 -mx-4 -mt-6 mb-6 bg-paper/95 backdrop-blur-md border-b border-gray-200 shadow-sm transition-all duration-300">
+        {/* --- DATE SCROLLER --- */}
         <div className="flex items-center">
              <div className="flex-1 overflow-x-auto flex gap-3 px-4 pb-4 pt-4 no-scrollbar snap-x">
                 {allDates.map(date => {
@@ -338,26 +340,26 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                 </button>
             </div>
         </div>
-      </div>
-      
-      {/* --- PARTICIPANT FILTER --- */}
-      <div className="px-1 mb-4 overflow-x-auto no-scrollbar">
-          <div className="flex gap-2 min-w-max px-1">
-              <button 
-                onClick={() => setSelectedPassenger('all')}
-                className={`px-4 py-1.5 rounded-full border-2 text-xs font-bold transition-all ${selectedPassenger === 'all' ? 'bg-ink text-white border-ink' : 'bg-white text-gray-400 border-gray-300'}`}
-              >
-                  ALL
-              </button>
-              {trip.allowedEmails.map(email => (
-                  <AvatarFilter 
-                    key={email} 
-                    email={email} 
-                    active={selectedPassenger === email} 
-                    onClick={() => setSelectedPassenger(email)} 
-                  />
-              ))}
-          </div>
+
+        {/* --- PARTICIPANT FILTER --- */}
+        <div className="px-4 pb-4 overflow-x-auto no-scrollbar">
+            <div className="flex gap-2 min-w-max px-1">
+                <button 
+                    onClick={() => setSelectedPassenger('all')}
+                    className={`px-4 py-1.5 rounded-full border-2 text-xs font-bold transition-all ${selectedPassenger === 'all' ? 'bg-ink text-white border-ink' : 'bg-white text-gray-400 border-gray-300'}`}
+                >
+                    ALL
+                </button>
+                {trip.allowedEmails.map(email => (
+                    <AvatarFilter 
+                        key={email} 
+                        email={email} 
+                        active={selectedPassenger === email} 
+                        onClick={() => setSelectedPassenger(email)} 
+                    />
+                ))}
+            </div>
+        </div>
       </div>
 
       {loading && <div className="text-center text-gray-400 mt-10 flex flex-col items-center gap-2"><RefreshCw className="animate-spin" size={20} /> Checking schedule...</div>}
@@ -365,12 +367,12 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
       {/* --- DAY VIEW CONTENT --- */}
       {!loading && (
         <div className="animate-in fade-in duration-500">
-           <div className="flex items-center gap-2 mb-4 px-2">
-             <div className="h-[2px] bg-brand/20 flex-1 rounded-full"></div>
-             <h3 className="font-bold text-gray-500 text-sm uppercase tracking-widest font-rounded">
+           <div className="flex items-center gap-2 mb-6 px-2">
+             <div className="h-[2px] bg-brand/10 flex-1 rounded-full"></div>
+             <h3 className="font-bold text-gray-400 text-[10px] uppercase tracking-widest font-rounded px-2">
                 {new Date(selectedDate + 'T00:00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}
              </h3>
-             <div className="h-[2px] bg-brand/20 flex-1 rounded-full"></div>
+             <div className="h-[2px] bg-brand/10 flex-1 rounded-full"></div>
            </div>
 
            {daysItems.length === 0 ? (
@@ -385,12 +387,10 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                </Button>
              </div>
            ) : (
-             <div className="flex flex-col gap-4 relative pb-20">
-                {/* Continuous Vertical Line */}
-                <div className="absolute left-[19px] top-4 bottom-4 w-[2px] bg-gray-300 rounded-full z-0"></div>
-
+             <div className="flex flex-col gap-6 relative pb-20">
                 {daysItems.map((item, index) => {
                   const uniqueKey = `${item.id}_${item.renderMode}`;
+                  const isLast = index === daysItems.length - 1;
                   
                   // --- FLIGHT CARD ---
                   if (item.renderMode === 'flight_dep' || item.renderMode === 'flight_arr') {
@@ -408,48 +408,61 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                     
                     if (item.renderMode === 'flight_dep') {
                         return (
-                          <div key={uniqueKey} className="relative z-10 pl-2 cursor-pointer group" onClick={() => handleItemClick(item)}>
-                             <div className="bg-white rounded-3xl shadow-soft border-2 border-gray-300 overflow-hidden transition-transform group-hover:shadow-soft-hover group-hover:border-brand">
-                                <div className="p-4 border-b-2 border-dashed border-brand/20 bg-brand/10 flex justify-between items-start">
-                                    <div className="flex items-center gap-2 font-bold text-brand mt-1.5">
-                                      <Plane size={18} />
-                                      <span className="text-sm tracking-widest font-rounded">BOARDING PASS</span>
-                                    </div>
-                                    <div className="flex flex-col items-end gap-1 max-w-[65%]">
-                                        <div className="text-[10px] font-bold text-brand/60 uppercase tracking-widest leading-none">Passengers</div>
-                                        <ParticipantTags emails={item.participants || []} />
-                                    </div>
+                          <div key={uniqueKey} className="relative z-10 flex gap-3 group cursor-pointer pl-0.5" onClick={() => handleItemClick(item)}>
+                             {/* FIXED: bottom-0 stops the line correctly at the last item */}
+                             {!isLast && (<div className="absolute left-[19px] top-8 bottom-0 w-[2px] bg-gray-300 z-0 rounded-full"></div>)}
+                             
+                             {/* ADDED: Gutter column for Flight Cards to ensure consistent body width with other items */}
+                             <div className="flex flex-col items-center pt-1 w-10">
+                                <div className="w-10 h-10 rounded-full bg-white border-2 border-brand flex items-center justify-center z-10 shadow-sm group-hover:scale-110 transition-transform">
+                                   <Plane className="text-brand" size={18} />
                                 </div>
-                                <div className="p-5">
-                                    <div className="text-center mb-6">
-                                        <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Flight Number</div>
-                                        <div className="text-4xl font-black text-ink tracking-tighter">{item.flightDetails?.flightNumber || 'TBD'}</div>
-                                    </div>
-                                    <div className="flex justify-between items-center mb-6">
-                                        <div className="text-center">
-                                            <div className="text-3xl font-black text-ink">{item.flightDetails?.origin || 'ORG'}</div>
-                                            <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1">Departs</div>
-                                            <div className="text-sm font-bold px-3 py-1 rounded-full inline-block bg-brand/10 text-brand">{item.time}</div>
+                                <div className="mt-1 bg-paper px-1 rounded text-[10px] font-bold text-gray-500 font-mono">{item.time}</div>
+                             </div>
+
+                             <div className="flex-1">
+                                <div className="bg-white rounded-3xl shadow-soft border-2 border-gray-300 overflow-hidden transition-transform group-hover:shadow-soft-hover group-hover:border-brand">
+                                    <div className="p-4 border-b-2 border-dashed border-brand/20 bg-brand/10 flex justify-between items-start">
+                                        <div className="flex items-center gap-2 font-bold text-brand mt-1.5">
+                                        <Plane size={18} />
+                                        <span className="text-sm tracking-widest font-rounded">BOARDING PASS</span>
                                         </div>
-                                        <div className="flex-1 px-4 flex flex-col items-center opacity-30">
-                                            <div className="h-[2px] w-full bg-ink relative top-3 border-b border-dashed"></div>
-                                            <Plane className="text-ink relative bg-white px-1 rotate-90" size={24} />
-                                        </div>
-                                        <div className="text-center">
-                                            <div className="text-3xl font-black text-ink">{item.flightDetails?.destination || 'DST'}</div>
-                                            <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1">Arrives</div>
-                                            <div className="text-sm font-bold px-3 py-1 rounded-full inline-block bg-orange-100 text-orange-600">{item.flightDetails?.arrivalTime || '--:--'}</div>
+                                        <div className="flex flex-col items-end gap-1 max-w-[65%]">
+                                            <div className="text-[10px] font-bold text-brand/60 uppercase tracking-widest leading-none">Passengers</div>
+                                            <ParticipantTags emails={item.participants || []} />
                                         </div>
                                     </div>
-                                    <div className={`flex justify-between items-center rounded-xl p-3 border ${statusBgClass}`}>
-                                        <div className="flex items-center gap-3">
-                                           <div className={`w-2.5 h-2.5 rounded-full ${statusDotClass}`}></div>
-                                           <div className="flex flex-col">
-                                               <span className="text-[9px] uppercase font-bold text-gray-400 leading-none mb-0.5">Status</span>
-                                               <span className={`font-bold text-sm leading-none ${statusColorClass}`}>{statusText}</span>
-                                           </div>
+                                    <div className="p-5">
+                                        <div className="text-center mb-6">
+                                            <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Flight Number</div>
+                                            <div className="text-4xl font-black text-ink tracking-tighter">{item.flightDetails?.flightNumber || 'TBD'}</div>
                                         </div>
-                                        <button onClick={(e) => { e.stopPropagation(); refreshFlightStatus(item); }} className="p-2 rounded-full text-gray-400 hover:text-brand"><RefreshCw size={16} /></button>
+                                        <div className="flex justify-between items-center mb-6">
+                                            <div className="text-center">
+                                                <div className="text-3xl font-black text-ink">{item.flightDetails?.origin || 'ORG'}</div>
+                                                <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1">Departs</div>
+                                                <div className="text-sm font-bold px-3 py-1 rounded-full inline-block bg-brand/10 text-brand">{item.time}</div>
+                                            </div>
+                                            <div className="flex-1 px-4 flex flex-col items-center opacity-30">
+                                                <div className="h-[2px] w-full bg-ink relative top-3 border-b border-dashed"></div>
+                                                <Plane className="text-ink relative bg-white px-1 rotate-90" size={24} />
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-3xl font-black text-ink">{item.flightDetails?.destination || 'DST'}</div>
+                                                <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1">Arrives</div>
+                                                <div className="text-sm font-bold px-3 py-1 rounded-full inline-block bg-orange-100 text-orange-600">{item.flightDetails?.arrivalTime || '--:--'}</div>
+                                            </div>
+                                        </div>
+                                        <div className={`flex justify-between items-center rounded-xl p-3 border ${statusBgClass}`}>
+                                            <div className="flex items-center gap-3">
+                                            <div className={`w-2.5 h-2.5 rounded-full ${statusDotClass}`}></div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[9px] uppercase font-bold text-gray-400 leading-none mb-0.5">Status</span>
+                                                <span className={`font-bold text-sm leading-none ${statusColorClass}`}>{statusText}</span>
+                                            </div>
+                                            </div>
+                                            <button onClick={(e) => { e.stopPropagation(); refreshFlightStatus(item); }} className="p-2 rounded-full text-gray-400 hover:text-brand"><RefreshCw size={16} /></button>
+                                        </div>
                                     </div>
                                 </div>
                              </div>
@@ -457,20 +470,29 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                         );
                     } else {
                          return (
-                            <div key={uniqueKey} className="relative z-10 pl-2 cursor-pointer group opacity-70 hover:opacity-100 transition-opacity" onClick={() => handleItemClick(item)}>
-                                <div className="bg-white rounded-3xl shadow-soft border-2 border-dashed border-brand/30 overflow-hidden">
-                                    <div className="p-3 bg-gray-50 flex items-center justify-between">
-                                        <div className="flex items-center gap-2 text-gray-400 font-bold"><Plane size={16} className="rotate-90" /><span className="text-xs uppercase tracking-widest">Arrival</span></div>
-                                        <div className="text-xs font-mono font-bold text-gray-400">{item.flightDetails?.flightNumber}</div>
+                            <div key={uniqueKey} className="relative z-10 flex gap-3 group cursor-pointer pl-0.5" onClick={() => handleItemClick(item)}>
+                                {!isLast && (<div className="absolute left-[19px] top-8 bottom-0 w-[2px] bg-gray-300 z-0 rounded-full"></div>)}
+                                <div className="flex flex-col items-center pt-1 w-10">
+                                    <div className="w-10 h-10 rounded-full bg-white border-2 border-brand/30 flex items-center justify-center z-10 shadow-sm opacity-50">
+                                        <Plane className="text-brand rotate-90" size={16} />
                                     </div>
-                                    <div className="p-4 flex justify-between items-center">
-                                        <div>
-                                            <div className="text-2xl font-black text-gray-500">{item.flightDetails?.destination}</div>
-                                            <div className="text-xs text-gray-400">Arrives {item.flightDetails?.arrivalTime}</div>
+                                    <div className="mt-1 bg-paper px-1 rounded text-[10px] font-bold text-gray-400 font-mono">{item.flightDetails?.arrivalTime}</div>
+                                </div>
+                                <div className="flex-1">
+                                    <div className="bg-white rounded-3xl shadow-soft border-2 border-dashed border-brand/30 overflow-hidden opacity-70 group-hover:opacity-100 transition-opacity">
+                                        <div className="p-3 bg-gray-50 flex items-center justify-between">
+                                            <div className="flex items-center gap-2 text-gray-400 font-bold"><Plane size={16} className="rotate-90" /><span className="text-xs uppercase tracking-widest">Arrival</span></div>
+                                            <div className="text-xs font-mono font-bold text-gray-400">{item.flightDetails?.flightNumber}</div>
                                         </div>
-                                        <div className="text-right">
-                                            <div className="text-xs text-gray-400">From</div>
-                                            <div className="text-lg font-bold text-gray-500">{item.flightDetails?.origin}</div>
+                                        <div className="p-4 flex justify-between items-center">
+                                            <div>
+                                                <div className="text-2xl font-black text-gray-500">{item.flightDetails?.destination}</div>
+                                                <div className="text-xs text-gray-400">Arrives {item.flightDetails?.arrivalTime}</div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-xs text-gray-400">From</div>
+                                                <div className="text-lg font-bold text-gray-500">{item.flightDetails?.origin}</div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -486,6 +508,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                       const time = isCheckOut ? (item.endTime || '11:00') : item.time;
                       return (
                         <div key={uniqueKey} className="relative z-10 flex gap-3 group cursor-pointer" onClick={() => handleItemClick(item)}>
+                            {!isLast && (<div className="absolute left-[19px] top-8 bottom-0 w-[2px] bg-gray-300 z-0 rounded-full"></div>)}
                             <div className="flex flex-col items-center pt-1">
                                 <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center z-10 shadow-sm transition-transform group-hover:scale-110 ${isCheckOut ? 'bg-white border-red-200 text-red-500' : 'bg-white border-purple-200 text-purple-500'}`}>
                                     {isCheckOut ? <LogOut size={16} className="ml-0.5" /> : <LogIn size={16} className="mr-0.5" />}
@@ -525,6 +548,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                   // --- STANDARD NOTEBOOK STRIP (Sightseeing, Food, etc) ---
                   return (
                     <div key={uniqueKey} className="relative z-10 flex gap-3 group cursor-pointer" onClick={() => handleItemClick(item)}>
+                       {!isLast && (<div className="absolute left-[19px] top-8 bottom-0 w-[2px] bg-gray-300 z-0 rounded-full"></div>)}
                        <div className="flex flex-col items-center pt-1">
                           <div className="w-10 h-10 rounded-full bg-white border-2 border-brand flex items-center justify-center z-10 shadow-sm group-hover:scale-110 transition-transform">
                              <TypeIcon type={item.type} />
