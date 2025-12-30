@@ -7,7 +7,7 @@ import { Card, Button } from '../../components/ui/Layout';
 import { Plus, Plane, RefreshCw, AlertTriangle, Sparkles, Settings, Lock, LogIn, LogOut, Calendar, MapPin, Bed } from 'lucide-react';
 
 // Imported Sub-Components
-import { TypeIcon, AvatarPile, AvatarFilter } from './ScheduleShared';
+import { TypeIcon, AvatarPile, AvatarFilter, ParticipantTags } from './ScheduleShared';
 import { ScheduleEditModal } from './ScheduleEditModal';
 import { ScheduleViewModal } from './ScheduleViewModal';
 import { TripSettingsModal } from './TripSettingsModal';
@@ -304,7 +304,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
   return (
     <div className="pb-24">
       {/* --- DATE SCROLLER --- */}
-      <div className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-40 -mx-4 mb-2 bg-paper/90 backdrop-blur-sm border-b border-[#E0E5D5]/50 transition-all duration-300">
+      <div className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-40 -mx-4 mb-2 bg-paper/90 backdrop-blur-sm border-b border-gray-300 transition-all duration-300">
         <div className="flex items-center">
              <div className="flex-1 overflow-x-auto flex gap-3 px-4 pb-4 pt-4 no-scrollbar snap-x">
                 {allDates.map(date => {
@@ -319,7 +319,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                         className={`snap-start flex-shrink-0 flex flex-col items-center justify-center w-[72px] h-[84px] rounded-3xl border-2 transition-all duration-300 ${
                         isSelected 
                             ? 'bg-brand border-brand text-white shadow-md scale-105 rotate-1' 
-                            : 'bg-white border-[#E0E5D5] text-gray-400 hover:border-brand/50 hover:scale-105'
+                            : 'bg-white border-gray-300 text-gray-400 hover:border-brand/50 hover:scale-105'
                         }`}
                     >
                         <span className="text-xs font-bold uppercase tracking-wide">{d.toLocaleDateString('en-US', { weekday: 'short' })}</span>
@@ -332,7 +332,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
             <div className="pr-4 pl-2">
                 <button 
                     onClick={() => setIsEditingSettings(true)}
-                    className="w-12 h-12 rounded-full bg-white border-2 border-[#E0E5D5] flex items-center justify-center text-gray-400 hover:text-brand hover:border-brand transition-colors shadow-sm"
+                    className="w-12 h-12 rounded-full bg-white border-2 border-gray-300 flex items-center justify-center text-gray-400 hover:text-brand hover:border-brand transition-colors shadow-sm"
                 >
                     <Settings size={20} />
                 </button>
@@ -345,7 +345,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
           <div className="flex gap-2 min-w-max px-1">
               <button 
                 onClick={() => setSelectedPassenger('all')}
-                className={`px-4 py-1.5 rounded-full border-2 text-xs font-bold transition-all ${selectedPassenger === 'all' ? 'bg-ink text-white border-ink' : 'bg-white text-gray-400 border-gray-200'}`}
+                className={`px-4 py-1.5 rounded-full border-2 text-xs font-bold transition-all ${selectedPassenger === 'all' ? 'bg-ink text-white border-ink' : 'bg-white text-gray-400 border-gray-300'}`}
               >
                   ALL
               </button>
@@ -374,7 +374,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
            </div>
 
            {daysItems.length === 0 ? (
-             <div className="flex flex-col items-center justify-center py-12 px-6 text-center border-2 border-dashed border-[#E0E5D5] rounded-3xl bg-white/50 mx-2">
+             <div className="flex flex-col items-center justify-center py-12 px-6 text-center border-2 border-dashed border-gray-300 rounded-3xl bg-white/50 mx-2">
                <div className="bg-green-100 text-green-600 w-16 h-16 rounded-full flex items-center justify-center mb-4 shadow-sm">
                  <Sparkles size={32} />
                </div>
@@ -387,7 +387,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
            ) : (
              <div className="flex flex-col gap-4 relative pb-20">
                 {/* Continuous Vertical Line */}
-                <div className="absolute left-[19px] top-4 bottom-4 w-[2px] bg-[#E0E5D5] rounded-full z-0"></div>
+                <div className="absolute left-[19px] top-4 bottom-4 w-[2px] bg-gray-300 rounded-full z-0"></div>
 
                 {daysItems.map((item, index) => {
                   const uniqueKey = `${item.id}_${item.renderMode}`;
@@ -409,14 +409,15 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                     if (item.renderMode === 'flight_dep') {
                         return (
                           <div key={uniqueKey} className="relative z-10 pl-2 cursor-pointer group" onClick={() => handleItemClick(item)}>
-                             <div className="bg-white rounded-3xl shadow-soft border-2 border-[#E0E5D5] overflow-hidden transition-transform group-hover:shadow-soft-hover group-hover:border-brand">
+                             <div className="bg-white rounded-3xl shadow-soft border-2 border-gray-300 overflow-hidden transition-transform group-hover:shadow-soft-hover group-hover:border-brand">
                                 <div className="p-4 border-b-2 border-dashed border-brand/20 bg-brand/10 flex justify-between items-start">
                                     <div className="flex items-center gap-2 font-bold text-brand mt-1.5">
                                       <Plane size={18} />
                                       <span className="text-sm tracking-widest font-rounded">BOARDING PASS</span>
                                     </div>
-                                    <div className="flex flex-wrap justify-end gap-1.5 max-w-[65%]">
-                                        <AvatarPile emails={item.participants || []} />
+                                    <div className="flex flex-col items-end gap-1 max-w-[65%]">
+                                        <div className="text-[10px] font-bold text-brand/60 uppercase tracking-widest leading-none">Passengers</div>
+                                        <ParticipantTags emails={item.participants || []} />
                                     </div>
                                 </div>
                                 <div className="p-5">
@@ -493,12 +494,15 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                             </div>
                             <div className="flex-1">
                                 <Card className={`!p-4 flex flex-col gap-2 relative overflow-hidden group-hover:-translate-y-1 transition-transform border-2 ${isCheckOut ? 'border-red-100 bg-red-50/30' : 'border-purple-100 bg-purple-50/30'}`}>
-                                    <div className="flex justify-between items-start">
-                                        <div>
+                                    <div className="flex justify-between items-start gap-4">
+                                        <div className="flex-1">
                                             <div className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isCheckOut ? 'text-red-400' : 'text-purple-400'}`}>{label}</div>
                                             <h4 className="font-bold text-ink text-lg leading-tight font-rounded">{item.title}</h4>
                                         </div>
-                                        <div className={`p-2 rounded-full ${isCheckOut ? 'bg-red-100 text-red-500' : 'bg-purple-100 text-purple-500'}`}><Bed size={16} /></div>
+                                        <div className="flex-shrink-0 flex flex-col items-end gap-2">
+                                            <div className={`p-2 rounded-full ${isCheckOut ? 'bg-red-100 text-red-500' : 'bg-purple-100 text-purple-500'}`}><Bed size={16} /></div>
+                                            <ParticipantTags emails={item.participants || []} />
+                                        </div>
                                     </div>
                                     {/* Link Icon if exists */}
                                     {item.locationLink && (
@@ -507,15 +511,9 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                                         </div>
                                     )}
                                     {item.notes && (
-                                        <div className="bg-white rounded-2xl p-3 border border-dashed border-gray-200 shadow-sm mt-2">
+                                        <div className="bg-white rounded-2xl p-3 border border-dashed border-gray-300 shadow-sm mt-2">
                                             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Notes</div>
                                             <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{item.notes}</p>
-                                        </div>
-                                    )}
-                                    {item.participants && item.participants.length < trip.allowedEmails.length && (
-                                        <div className="bg-white rounded-xl p-2 border border-black/5 flex items-center gap-2 mt-2">
-                                            <span className="text-[10px] font-bold uppercase text-gray-400">Guests</span>
-                                            <AvatarPile emails={item.participants} />
                                         </div>
                                     )}
                                 </Card>
@@ -538,29 +536,30 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                        </div>
                        <div className="flex-1">
                           <Card className="!p-4 flex flex-col gap-2 relative overflow-hidden group-hover:-translate-y-1 transition-transform group-hover:border-brand">
-                             <div className="absolute top-2 right-[-20px] bg-yellow-100 w-20 h-4 rotate-45 opacity-50"></div>
-                             <h4 className="font-bold text-ink text-lg leading-tight font-rounded">{item.title}</h4>
-                             {item.endDate && item.endDate !== item.date && (
-                                <div className="text-[10px] font-bold text-purple-500 flex items-center gap-1 bg-purple-50 px-2 py-1 rounded-full self-start">
-                                    <Calendar size={10} /> Ends {formatDateShort(item.endDate)}
+                             <div className="flex justify-between items-start gap-4">
+                                <div className="flex-1">
+                                    <h4 className="font-bold text-ink text-lg leading-tight font-rounded">{item.title}</h4>
+                                    {item.endDate && item.endDate !== item.date && (
+                                        <div className="text-[10px] font-bold text-purple-500 flex items-center gap-1 bg-purple-50 px-2 py-1 rounded-full self-start mt-1">
+                                            <Calendar size={10} /> Ends {formatDateShort(item.endDate)}
+                                        </div>
+                                    )}
                                 </div>
-                             )}
+                                <div className="flex-shrink-0">
+                                    <ParticipantTags emails={item.participants || []} />
+                                </div>
+                             </div>
+                             
                              {item.locationLink && (
                                  <div className="text-xs text-blue-500 flex items-center gap-1 font-bold">
                                      <MapPin size={12} /> Map Link
                                  </div>
                              )}
                              {item.notes && (
-                                <div className="bg-white rounded-2xl p-3 border border-dashed border-gray-200 shadow-sm mt-2">
+                                <div className="bg-white rounded-2xl p-3 border border-dashed border-gray-300 shadow-sm mt-2">
                                     <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Notes</div>
                                     <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{item.notes}</p>
                                 </div>
-                             )}
-                             {item.participants && item.participants.length < trip.allowedEmails.length && (
-                               <div className="bg-white rounded-xl p-2 border border-black/5 flex items-center gap-2 mt-2">
-                                    <span className="text-[10px] font-bold uppercase text-gray-400">With</span>
-                                    <AvatarPile emails={item.participants} />
-                               </div>
                              )}
                           </Card>
                        </div>

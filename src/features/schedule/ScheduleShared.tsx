@@ -33,6 +33,28 @@ export const AvatarPile: React.FC<{ emails: string[], size?: 'sm' | 'md' }> = ({
   );
 };
 
+export const ParticipantTags: React.FC<{ emails: string[] }> = ({ emails }) => {
+  if (!emails || emails.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap justify-end gap-1">
+      {emails.slice(0, 2).map((email) => (
+        <div key={email} className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-full pl-0.5 pr-2 py-0.5 shadow-sm">
+          <div className="w-4 h-4 rounded-full bg-brand text-white text-[8px] flex items-center justify-center font-black uppercase">
+            {email[0]}
+          </div>
+          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-tight">{email.split('@')[0]}</span>
+        </div>
+      ))}
+      {emails.length > 2 && (
+        <div className="bg-gray-100 text-gray-400 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-gray-200">
+          +{emails.length - 2}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const AvatarFilter: React.FC<{ 
     email: string; 
     active: boolean; 
