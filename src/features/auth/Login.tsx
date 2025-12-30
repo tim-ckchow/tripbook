@@ -1,18 +1,59 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 // FIX: Switched to v8 namespaced API
 import { auth, db, firebase } from '../../lib/firebase';
 import { Card, Screen, Input, Button } from '../../components/ui/Layout';
-import { X, Sparkles } from 'lucide-react';
+import { X, Sparkles, RefreshCw, AlertTriangle } from 'lucide-react';
+
+interface PatchNote {
+  id: string;
+  version: string;
+  tag?: string;
+  order: number;
+  sections: {
+    title: string;
+    items: string[];
+  }[];
+}
 
 export const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  // Patch Notes State
   const [showPatchNotes, setShowPatchNotes] = useState(false);
+  const [notes, setNotes] = useState<PatchNote[]>([]);
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [notesError, setNotesError] = useState(false);
   
   // Email/Pass State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
+
+  // Fetch patch notes when modal opens
+  useEffect(() => {
+    if (showPatchNotes && notes.length === 0) {
+        setLoadingNotes(true);
+        setNotesError(false);
+        // Assuming collection is 'patch_notes' ordered by 'order' descending
+        const unsub = db.collection('patch_notes')
+            .orderBy('order', 'desc')
+            .onSnapshot((snapshot) => {
+                const fetchedNotes = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as PatchNote[];
+                setNotes(fetchedNotes);
+                setLoadingNotes(false);
+                setNotesError(false);
+            }, (err) => {
+                console.warn("Failed to load patch notes", err.message);
+                setLoadingNotes(false);
+                setNotesError(true);
+            });
+        return () => unsub();
+    }
+  }, [showPatchNotes]);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -81,6 +122,24 @@ export const Login: React.FC = () => {
     }
   };
 
+  const renderNoteItem = (text: any) => {
+      // FIX: Ensure text is a string before calling .split()
+      if (typeof text !== 'string') {
+          return String(text || '');
+      }
+      // Helper to bold text before a colon (e.g. "Feature: Description")
+      const parts = text.split(':');
+      if (parts.length > 1) {
+          return (
+              <span>
+                  <span className="font-bold text-ink">{parts[0]}:</span>
+                  {parts.slice(1).join(':')}
+              </span>
+          );
+      }
+      return text;
+  };
+
   return (
     <Screen className="flex flex-col justify-center min-h-screen">
       <div className="mb-8 text-center">
@@ -108,7 +167,7 @@ export const Login: React.FC = () => {
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
                 <span className="text-sm">Continue with Google</span>
                 </>
@@ -191,96 +250,78 @@ export const Login: React.FC = () => {
                   </div>
                   
                   <div className="p-6 overflow-y-auto no-scrollbar flex-1">
+                      {loadingNotes && (
+                          <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-400">
+                              <RefreshCw className="animate-spin" size={20} />
+                              <span className="text-xs font-bold">Loading updates...</span>
+                          </div>
+                      )}
+                      
+                      {!loadingNotes && notesError && (
+                          <div className="text-center py-10 text-gray-400 flex flex-col items-center">
+                               <AlertTriangle size={24} className="mb-2 opacity-50 text-red-400"/>
+                               <p className="text-sm font-bold text-red-400">Unable to load notes</p>
+                               <p className="text-xs max-w-[200px] mt-1">Check your connection or permissions.</p>
+                           </div>
+                      )}
+
+                      {!loadingNotes && !notesError && notes.length === 0 && (
+                           <div className="text-center py-10 text-gray-400 flex flex-col items-center">
+                               <Sparkles size={24} className="mb-2 opacity-50"/>
+                               <p className="text-sm font-bold">No updates yet.</p>
+                               <p className="text-xs max-w-[200px] mt-1">We'll post new features here soon!</p>
+                           </div>
+                      )}
+
                       <div className="space-y-8">
-                          {/* Version 1.0.1 */}
-                          <div className="relative">
-                              <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-gray-100 rounded-full"></div>
-                              <div className="pl-6 relative">
-                                  <div className="absolute -left-[5px] top-0 w-3 h-3 rounded-full bg-brand border-2 border-white shadow-sm"></div>
-                                  <div className="flex items-center gap-2 mb-3">
-                                      <span className="font-black text-xl text-ink font-rounded">v1.0.1</span>
-                                      <span className="bg-brand/10 text-brand text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">Current</span>
-                                  </div>
-                                  
-                                  <div className="space-y-4">
-                                      <div>
-                                          <h4 className="font-bold text-sm text-gray-700 mb-2 flex items-center gap-2">
-                                              ✨ New Features
-                                          </h4>
-                                          <ul className="space-y-2">
-                                              <li className="text-sm text-gray-600 pl-3 border-l-2 border-gray-100">
-                                                  <span className="font-bold text-ink">Offline Mode</span><br/>
-                                                  View your itinerary even without internet connection.
-                                              </li>
-                                              <li className="text-sm text-gray-600 pl-3 border-l-2 border-gray-100">
-                                                  <span className="font-bold text-ink">Flight Status</span><br/>
-                                                  Real-time flight status tracking (Demo).
-                                              </li>
-                                          </ul>
-                                      </div>
+                          {notes.map((note, index) => {
+                              // Style specific to the most recent/current note
+                              const isFirst = index === 0;
+                              const opacityClass = isFirst ? 'opacity-100' : 'opacity-60 hover:opacity-100 transition-opacity';
+                              const dotClass = isFirst ? 'bg-brand border-white shadow-sm' : 'bg-gray-200 border-white';
+                              
+                              return (
+                                  <div key={note.id} className={`relative ${opacityClass}`}>
+                                      {/* Vertical Line */}
+                                      <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-gray-100 rounded-full"></div>
                                       
-                                      <div>
-                                          <h4 className="font-bold text-sm text-gray-700 mb-2 flex items-center gap-2">
-                                              🛠 Improvements
-                                          </h4>
-                                          <ul className="space-y-2">
-                                              <li className="text-xs text-gray-500 flex gap-2 items-center">
-                                                  <div className="w-1 h-1 rounded-full bg-gray-300"></div>
-                                                  Updated expense splitting UI for clarity.
-                                              </li>
-                                              <li className="text-xs text-gray-500 flex gap-2 items-center">
-                                                  <div className="w-1 h-1 rounded-full bg-gray-300"></div>
-                                                  Fixed issue with hotel check-out dates.
-                                              </li>
-                                          </ul>
+                                      <div className="pl-6 relative">
+                                          {/* Dot */}
+                                          <div className={`absolute -left-[5px] top-0 w-3 h-3 rounded-full border-2 ${dotClass}`}></div>
+                                          
+                                          {/* Version Header */}
+                                          <div className="flex items-center gap-2 mb-3">
+                                              <span className={`font-black text-xl font-rounded ${isFirst ? 'text-ink' : 'text-gray-400'}`}>
+                                                  {note.version}
+                                              </span>
+                                              {note.tag && (
+                                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${isFirst ? 'bg-brand/10 text-brand' : 'bg-gray-100 text-gray-400'}`}>
+                                                      {note.tag}
+                                                  </span>
+                                              )}
+                                          </div>
+                                          
+                                          {/* Sections */}
+                                          <div className="space-y-4">
+                                              {Array.isArray(note.sections) && note.sections.map((section, sIdx) => (
+                                                  <div key={sIdx}>
+                                                      <h4 className="font-bold text-sm text-gray-700 mb-2 flex items-center gap-2">
+                                                          {section.title}
+                                                      </h4>
+                                                      <ul className="space-y-2">
+                                                          {Array.isArray(section.items) && section.items.map((item, iIdx) => (
+                                                              <li key={iIdx} className="text-sm text-gray-600 pl-3 border-l-2 border-gray-100">
+                                                                  {renderNoteItem(item)}
+                                                              </li>
+                                                          ))}
+                                                      </ul>
+                                                  </div>
+                                              ))}
+                                          </div>
                                       </div>
                                   </div>
-                              </div>
-                          </div>
-
-                          {/* Version 1.0.0 */}
-                          <div className="relative opacity-60">
-                              <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-gray-100 rounded-full"></div>
-                              <div className="pl-6 relative">
-                                  <div className="absolute -left-[5px] top-0 w-3 h-3 rounded-full bg-gray-300 border-2 border-white"></div>
-                                  <div className="flex items-center gap-2 mb-3">
-                                      <span className="font-black text-xl text-gray-500 font-rounded">v1.0.0</span>
-                                  </div>
-                                  <p className="text-sm text-gray-500">
-                                      Initial release of TripBook. Collaborative planning, scheduling, and expense tracking.
-                                  </p>
-                              </div>
-                          </div>
-
-                          {/* Version 0.9.0 - Beta */}
-                          <div className="relative opacity-40 hover:opacity-100 transition-opacity">
-                              <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-gray-100 rounded-full"></div>
-                              <div className="pl-6 relative">
-                                  <div className="absolute -left-[5px] top-0 w-3 h-3 rounded-full bg-gray-200 border-2 border-white"></div>
-                                  <div className="flex items-center gap-2 mb-3">
-                                      <span className="font-black text-xl text-gray-400 font-rounded">v0.9.0</span>
-                                      <span className="bg-gray-100 text-gray-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">Beta</span>
-                                  </div>
-                                  <p className="text-sm text-gray-400">
-                                      Beta testing for core features. Added support for Google Login and real-time database sync.
-                                  </p>
-                              </div>
-                          </div>
-                          
-                           {/* Version 0.8.0 - Alpha */}
-                          <div className="relative opacity-30 hover:opacity-100 transition-opacity">
-                              <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-gray-100 rounded-full"></div>
-                              <div className="pl-6 relative">
-                                  <div className="absolute -left-[5px] top-0 w-3 h-3 rounded-full bg-gray-100 border-2 border-white"></div>
-                                  <div className="flex items-center gap-2 mb-3">
-                                      <span className="font-black text-xl text-gray-300 font-rounded">v0.8.0</span>
-                                      <span className="bg-gray-50 text-gray-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">Alpha</span>
-                                  </div>
-                                  <p className="text-sm text-gray-400">
-                                      Prototype release. Basic authentication and static itinerary views.
-                                  </p>
-                              </div>
-                          </div>
+                              );
+                          })}
                       </div>
                   </div>
                   
