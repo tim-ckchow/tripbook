@@ -3,6 +3,7 @@ import { ScheduleItem, ScheduleType, FlightDetails, Trip } from '../../types';
 import { Button, Input } from '../../components/ui/Layout';
 import { Plane, X, Trash2 } from 'lucide-react';
 import { TypeIcon } from './ScheduleShared';
+import { useAuth } from '../../context/AuthContext';
 
 interface ScheduleEditModalProps {
   trip: Trip;
@@ -16,6 +17,7 @@ interface ScheduleEditModalProps {
 export const ScheduleEditModal: React.FC<ScheduleEditModalProps> = ({ 
   trip, itemToEdit, selectedDate, onSave, onDelete, onClose 
 }) => {
+  const { user } = useAuth();
   
   // State initialization
   const [newItem, setNewItem] = useState<Partial<ScheduleItem>>({
@@ -27,7 +29,7 @@ export const ScheduleEditModal: React.FC<ScheduleEditModalProps> = ({
     title: '',
     notes: '',
     locationLink: '',
-    participants: trip.allowedEmails
+    participants: user?.email ? [user.email] : trip.allowedEmails
   });
   
   const [flightData, setFlightData] = useState<FlightDetails>({
@@ -65,14 +67,14 @@ export const ScheduleEditModal: React.FC<ScheduleEditModalProps> = ({
           endDate: selectedDate,
           type: 'sightseeing',
           title: '', notes: '', locationLink: '', time: '09:00', endTime: '',
-          participants: trip.allowedEmails
+          participants: user?.email ? [user.email] : trip.allowedEmails
       }));
       setFlightData({ 
           flightNumber: '', origin: 'ABC', destination: 'XYZ', arrivalTime: '', 
           seat: '', arrivalDate: selectedDate 
       });
     }
-  }, [itemToEdit, selectedDate, trip.allowedEmails]);
+  }, [itemToEdit, selectedDate, trip.allowedEmails, user?.email]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

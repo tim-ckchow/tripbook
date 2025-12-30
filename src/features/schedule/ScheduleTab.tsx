@@ -55,7 +55,7 @@ type DisplayItem = ScheduleItem & {
 };
 
 export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) => {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [items, setItems] = useState<ScheduleItem[]>([]);
   
   // MODAL STATES
@@ -73,7 +73,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
   const [isEditingSettings, setIsEditingSettings] = useState(false);
 
   // FILTER
-  const [selectedPassenger, setSelectedPassenger] = useState<string | 'all'>('all');
+  const [selectedPassenger, setSelectedPassenger] = useState<string | 'all'>(user?.email || 'all');
 
   // VIEW STATE
   const allDates = useMemo(() => {
@@ -422,14 +422,14 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
 
                              <div className="flex-1">
                                 <div className="bg-white rounded-3xl shadow-soft border-2 border-gray-300 overflow-hidden transition-transform group-hover:shadow-soft-hover group-hover:border-brand">
-                                    <div className="p-4 border-b-2 border-dashed border-brand/20 bg-brand/10 flex justify-between items-start">
+                                    <div className="p-4 border-b-2 border-dashed border-brand/20 bg-brand/10 flex flex-col gap-2 items-start">
                                         <div className="flex items-center gap-2 font-bold text-brand mt-1.5">
-                                        <Plane size={18} />
-                                        <span className="text-sm tracking-widest font-rounded">BOARDING PASS</span>
+                                            <Plane size={18} />
+                                            <span className="text-sm tracking-widest font-rounded">BOARDING PASS</span>
                                         </div>
-                                        <div className="flex flex-col items-end gap-1 max-w-[65%]">
+                                        <div className="flex items-center gap-2">
                                             <div className="text-[10px] font-bold text-brand/60 uppercase tracking-widest leading-none">Passengers</div>
-                                            <ParticipantTags emails={item.participants || []} />
+                                            <ParticipantTags emails={item.participants || []} className="justify-start" />
                                         </div>
                                     </div>
                                     <div className="p-5">
@@ -521,10 +521,13 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                                         <div className="flex-1">
                                             <div className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isCheckOut ? 'text-red-400' : 'text-purple-400'}`}>{label}</div>
                                             <h4 className="font-bold text-ink text-lg leading-tight font-rounded">{item.title}</h4>
+                                            {/* Participants moved below title */}
+                                            <div className="mt-2">
+                                                 <ParticipantTags emails={item.participants || []} className="justify-start" />
+                                            </div>
                                         </div>
                                         <div className="flex-shrink-0 flex flex-col items-end gap-2">
                                             <div className={`p-2 rounded-full ${isCheckOut ? 'bg-red-100 text-red-500' : 'bg-purple-100 text-purple-500'}`}><Bed size={16} /></div>
-                                            <ParticipantTags emails={item.participants || []} />
                                         </div>
                                     </div>
                                     {/* Link Icon if exists */}
@@ -568,9 +571,9 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                                             <Calendar size={10} /> Ends {formatDateShort(item.endDate)}
                                         </div>
                                     )}
-                                </div>
-                                <div className="flex-shrink-0">
-                                    <ParticipantTags emails={item.participants || []} />
+                                    <div className="mt-2">
+                                        <ParticipantTags emails={item.participants || []} className="justify-start" />
+                                    </div>
                                 </div>
                              </div>
                              

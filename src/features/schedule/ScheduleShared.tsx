@@ -33,11 +33,11 @@ export const AvatarPile: React.FC<{ emails: string[], size?: 'sm' | 'md' }> = ({
   );
 };
 
-export const ParticipantTags: React.FC<{ emails: string[] }> = ({ emails }) => {
+export const ParticipantTags: React.FC<{ emails: string[], className?: string }> = ({ emails, className = "justify-end" }) => {
   if (!emails || emails.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap justify-end gap-1">
+    <div className={`flex flex-wrap gap-1 ${className}`}>
       {emails.slice(0, 2).map((email) => (
         <div key={email} className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-full pl-0.5 pr-2 py-0.5 shadow-sm">
           <div className="w-4 h-4 rounded-full bg-brand text-white text-[8px] flex items-center justify-center font-black uppercase">
