@@ -6,11 +6,13 @@ import { ScheduleTab } from './features/schedule/ScheduleTab';
 import { MembersTab } from './features/members/MembersTab';
 import { BookingsTab } from './features/bookings/BookingsTab'; 
 import { ExpensesTab } from './features/expenses/ExpensesTab';
+import { LogTab } from './features/log/LogTab';
 import { TabBar } from './components/ui/TabBar';
 import { Screen, TopBar } from './components/ui/Layout';
 import { AppTab, Trip } from './types';
 import { WifiOff, Loader } from 'lucide-react';
 import { db } from './lib/firebase';
+import { UserMenu } from './components/ui/UserMenu';
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
@@ -66,7 +68,7 @@ const AppContent: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F7F4EB]">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-brand font-bold">Loading...</div>
       </div>
     );
@@ -93,7 +95,7 @@ const AppContent: React.FC = () => {
   // View: Loading Trip Data (if accessing directly or slow connection)
   if (!trip) {
       return (
-          <div className="min-h-screen flex flex-col items-center justify-center bg-[#F7F4EB] gap-2 text-brand">
+          <div className="min-h-screen flex flex-col items-center justify-center gap-2 text-brand">
              <Loader className="animate-spin" size={32} />
              <span className="font-bold text-sm">Opening Trip...</span>
           </div>
@@ -113,7 +115,12 @@ const AppContent: React.FC = () => {
       <TopBar 
         title={trip.title} 
         onBack={() => setTripId(null)}
-        rightAction={isOffline ? <WifiOff size={18} className="text-gray-400" /> : null}
+        rightAction={
+          <div className="flex items-center gap-3">
+             {isOffline && <WifiOff size={18} className="text-gray-400" />}
+             <UserMenu />
+          </div>
+        }
       />
       
       <Screen>
@@ -121,9 +128,10 @@ const AppContent: React.FC = () => {
         {currentTab === AppTab.Bookings && <BookingsTab trip={trip} initialTab={bookingsInitialTab} />}
         {currentTab === AppTab.Expenses && <ExpensesTab trip={trip} />}
         {currentTab === AppTab.Members && <MembersTab trip={trip} onTripExit={() => setTripId(null)} />}
+        {currentTab === AppTab.Journal && <LogTab trip={trip} />}
         
         {/* Placeholders for other tabs */}
-        {(currentTab !== AppTab.Schedule && currentTab !== AppTab.Bookings && currentTab !== AppTab.Expenses && currentTab !== AppTab.Members) && (
+        {(currentTab !== AppTab.Schedule && currentTab !== AppTab.Bookings && currentTab !== AppTab.Expenses && currentTab !== AppTab.Members && currentTab !== AppTab.Journal) && (
              <div className="text-center py-20 opacity-50">
                 <div className="text-4xl mb-4">🚧</div>
                 <h3 className="font-bold">Coming Soon</h3>

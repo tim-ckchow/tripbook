@@ -5,13 +5,14 @@ import { useAuth } from '../../context/AuthContext';
 import { Trip } from '../../types';
 import { Screen, TopBar, Card, Button, Input } from '../../components/ui/Layout';
 import { Plus, ChevronRight, MapPin, RefreshCw, AlertTriangle, Loader, Lock } from 'lucide-react';
+import { UserMenu } from '../../components/ui/UserMenu';
 
 interface TripListProps {
   onSelectTrip: (trip: Trip) => void;
 }
 
 export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [newTripTitle, setNewTripTitle] = useState('');
@@ -91,228 +92,188 @@ export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
         title: newTripTitle,
         startDate: new Date().toISOString().split('T')[0],
         endDate: new Date().toISOString().split('T')[0],
-        baseCurrency: 'USD',
-        allowedEmails: [user.email], 
-        createdAt: new Date().toISOString(),
+        baseCurrency: 'JPY',
+        allowedEmails: [user.email],
+        createdAt: new Date().toISOString()
       };
+      
       await newTripRef.set(tripData);
-      console.log(`[TripList] Trip doc created: ${newTripRef.id}`);
-
-      // 2. Create Member Document (Owner)
-      const memberRef = newTripRef.collection('members').doc(user.uid);
-      const memberData = {
+      
+      // 2. Add Owner as Member immediately
+      await newTripRef.collection('members').doc(user.uid).set({
         uid: user.uid,
         email: user.email,
         role: 'owner',
         nickname: user.displayName || user.email.split('@')[0],
         createdAt: new Date().toISOString()
-      };
-      await memberRef.set(memberData);
+      });
 
       setNewTripTitle('');
       setIsCreating(false);
-      setRetryTrigger(prev => prev + 1);
-
-    } catch (err) {
-      console.error("Error creating trip:", err);
-      alert("Could not create trip. Check console for details.");
+      setRetryTrigger(prev => prev + 1); // Force refresh
+    } catch (err: any) {
+      console.error("Create Trip Error:", err);
+      alert(`Failed to create trip: ${err.message}`);
     }
   };
 
-  const handleTripSelection = async (trip: Trip) => {
-      if (!user) return;
-      
-      // Indicate joining process
-      setJoiningTripId(trip.id);
+  const handleJoinTrip = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!user?.email || !joiningTripId) return;
 
-      // Auto-Join: Ensure the user has a member document when they enter the trip.
-      // This solves the issue of the owner not knowing the UID. 
-      // The user adds their OWN UID here.
+      setLoading(true);
       try {
-          const memberRef = db.collection(`trips/${trip.id}/members`).doc(user.uid);
-          const memberSnap = await memberRef.get();
+          // 1. Check if trip exists
+          const tripRef = db.collection('trips').doc(joiningTripId);
+          const tripDoc = await tripRef.get();
           
-          if (!memberSnap.exists) {
-              await memberRef.set({
-                  uid: user.uid,
-                  email: user.email,
-                  role: 'editor', // Default role for added members
-                  nickname: user.displayName || user.email?.split('@')[0],
-                  createdAt: new Date().toISOString()
-              });
-              console.log("Joined trip successfully.");
+          if (!tripDoc.exists) {
+              alert("Trip not found. Check the ID.");
+              setLoading(false);
+              return;
           }
-      } catch (err) {
-          console.error("Auto-join failed:", err);
-          // We proceed anyway because if the rules allow 'isEmailAllowed', they can still view partial data.
-          // But usually this write should succeed.
-      } finally {
+
+          // 2. Add email to allowlist if not already present
+          await tripRef.update({
+             allowedEmails: firebase.firestore.FieldValue.arrayUnion(user.email)
+          });
+          
+          // 3. Create Member Record
+          await tripRef.collection('members').doc(user.uid).set({
+              uid: user.uid,
+              email: user.email,
+              role: 'editor',
+              nickname: user.displayName || user.email.split('@')[0],
+              createdAt: new Date().toISOString()
+          });
+
           setJoiningTripId(null);
-          onSelectTrip(trip);
+          setRetryTrigger(prev => prev + 1);
+          alert("Joined successfully!");
+
+      } catch (err: any) {
+          console.error(err);
+          alert("Failed to join: " + err.message);
+      } finally {
+          setLoading(false);
       }
   };
 
-  const handleRetry = () => {
-    setLoading(true);
-    setErrorState(null);
-    setRetryTrigger(prev => prev + 1);
-  };
-
-  // --- ERROR STATE VIEWS ---
-
-  if (errorState?.code === 'missing-index') {
-    return (
-      <Screen className="flex flex-col items-center justify-center h-[80vh] text-center px-6">
-        <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-6">
-          <AlertTriangle size={32} />
-        </div>
-        <h2 className="text-xl font-bold text-ink mb-2">Configuration Required</h2>
-        <p className="text-gray-600 mb-6">
-          The database requires a specific index to load your trips.
-        </p>
-        <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl text-left text-sm text-orange-800 mb-8 w-full">
-          <strong>Action Required:</strong>
-          <ol className="list-decimal ml-4 mt-2 space-y-2">
-            <li>Open your browser's Developer Tools (F12).</li>
-            <li>Look for a red error message with a link.</li>
-            <li>Click the link to create the index.</li>
-          </ol>
-        </div>
-        <Button onClick={handleRetry} className="w-full max-w-xs">
-          <RefreshCw size={18} /> Retry Connection
-        </Button>
-      </Screen>
-    );
-  }
-
-  // Permission Denied View (Matches "Coming Soon" style)
-  if (errorState?.code === 'permission-denied') {
-      return (
-          <Screen className="flex flex-col items-center justify-center h-[80vh] text-center px-6">
-              <div className="text-center py-20 opacity-50">
-                <div className="text-4xl mb-4 flex justify-center"><Lock size={48} /></div>
-                <h3 className="font-bold text-xl mb-2">Access Restricted</h3>
-                <p className="max-w-[250px] mx-auto mb-6">
-                    You do not have permission to view these trips or the database rules are currently restricting access.
-                </p>
-                <div className="flex flex-col gap-3 items-center">
-                    <button onClick={handleRetry} className="text-sm font-bold underline">Try Again</button>
-                    <button onClick={logout} className="text-xs font-bold text-red-400">Logout</button>
-                </div>
-             </div>
-          </Screen>
-      );
-  }
-
   return (
-    <>
-      <TopBar 
-        title="My Trips" 
-        rightAction={
-          <button onClick={logout} className="text-sm font-bold text-gray-400">Logout</button>
-        } 
-      />
-      <Screen className="flex flex-col gap-6">
-        {loading ? (
-           <div className="text-center text-gray-400 py-10 flex flex-col items-center gap-2">
-             <RefreshCw className="animate-spin" size={20}/>
-             <span>Loading trips...</span>
-           </div>
-        ) : (
-          <>
-            {errorState && (
-               <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl text-sm flex flex-col gap-2">
-                  <div className="font-bold flex items-center gap-2"><AlertTriangle size={16}/> Error loading trips</div>
-                  <div>{errorState.message}</div>
-                  <Button variant="secondary" onClick={handleRetry} className="self-start py-2 h-auto text-xs">Retry</Button>
-               </div>
-            )}
-
-            {!errorState && trips.length === 0 && !isCreating && (
-              <div className="text-center py-10 px-6">
-                <div className="text-6xl mb-4">🌏</div>
-                <h3 className="font-bold text-xl text-ink mb-2">No trips yet!</h3>
-                <p className="text-gray-500 mb-6">
-                  {/* Inform user about old data visibility issue */}
-                  If you have old trips, they may be hidden until they are migrated to the new format.
-                  <br/><br/>
-                  Start a new adventure below.
-                </p>
-                <Button onClick={() => setIsCreating(true)}>Plan a New Trip</Button>
-              </div>
-            )}
-
-            {trips.map(trip => (
-              <Card 
-                key={trip.id} 
-                onClick={() => !joiningTripId && handleTripSelection(trip)}
-                className={`group relative overflow-hidden transition-all ${joiningTripId === trip.id ? 'opacity-80 scale-95' : ''}`}
-              >
-                {joiningTripId === trip.id && (
-                    <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-20 flex items-center justify-center gap-2 font-bold text-brand">
-                        <Loader className="animate-spin" size={20} /> Joining...
+    <div className="min-h-screen">
+      <TopBar title="My Trips" rightAction={<UserMenu />} />
+      
+      <Screen className="pt-24 pb-10">
+        
+        {errorState && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-6 flex flex-col gap-2">
+                <div className="flex items-center gap-2 text-red-600 font-bold">
+                    <AlertTriangle size={20} /> Error
+                </div>
+                <p className="text-sm text-gray-600">{errorState.message}</p>
+                {errorState.code === 'missing-index' && (
+                    <div className="text-xs bg-white p-2 rounded border border-gray-200 mt-2">
+                        Open your browser console (F12) to see the Firebase link to create the required index.
                     </div>
                 )}
-                
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="text-xl font-bold text-ink">{trip.title}</h3>
-                    <div className="flex items-center gap-1 text-gray-400 text-sm font-medium mt-1">
-                      <MapPin size={14} />
-                      <span>{trip.startDate}</span>
-                    </div>
-                  </div>
-                  <div className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center text-brand group-active:scale-90 transition-transform">
-                    <ChevronRight size={20} />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                   {/* Simple avatar pile based on allowed emails */}
-                   <div className="flex -space-x-2">
-                      {trip.allowedEmails.slice(0, 4).map((email, i) => (
-                          <div key={i} className="w-8 h-8 rounded-full bg-yellow-200 border-2 border-white flex items-center justify-center text-[10px] font-bold text-ink uppercase">
-                              {email[0]}
-                          </div>
-                      ))}
-                      {trip.allowedEmails.length > 4 && (
-                          <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-gray-500">
-                              +{trip.allowedEmails.length - 4}
-                          </div>
-                      )}
-                   </div>
-                </div>
-              </Card>
-            ))}
-          </>
+                <Button variant="secondary" onClick={() => setRetryTrigger(p => p + 1)} className="mt-2 text-xs h-8">
+                    <RefreshCw size={14} /> Retry
+                </Button>
+            </div>
         )}
 
+        {/* Create Trip Section */}
         {isCreating ? (
-          <Card className="border-brand">
-            <form onSubmit={handleCreateTrip} className="flex flex-col gap-4">
-              <h3 className="font-bold text-lg">New Adventure</h3>
-              <Input 
-                autoFocus
-                placeholder="Where are we going?" 
-                value={newTripTitle}
-                onChange={e => setNewTripTitle(e.target.value)}
-              />
-              <div className="flex gap-2">
-                <Button type="button" variant="secondary" onClick={() => setIsCreating(false)} className="flex-1">Cancel</Button>
-                <Button type="submit" className="flex-1">Create</Button>
-              </div>
-            </form>
+          <Card className="mb-6 animate-in slide-in-from-top-4">
+             <h3 className="font-bold text-lg mb-4">Start New Trip</h3>
+             <form onSubmit={handleCreateTrip} className="flex flex-col gap-4">
+                <Input 
+                  placeholder="Trip Name (e.g. Japan 2024)" 
+                  value={newTripTitle}
+                  onChange={e => setNewTripTitle(e.target.value)}
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                   <Button type="button" variant="secondary" onClick={() => setIsCreating(false)} className="flex-1">Cancel</Button>
+                   <Button type="submit" className="flex-1">Create</Button>
+                </div>
+             </form>
           </Card>
         ) : (
-          !loading && trips.length > 0 && (
-            <button 
-              onClick={() => setIsCreating(true)}
-              className="flex items-center justify-center gap-2 p-4 text-gray-400 font-bold border-2 border-dashed border-[#E0E5D5] rounded-3xl hover:bg-white/50 active:scale-95 transition-all"
-            >
-              <Plus size={20} /> Create New Trip
-            </button>
-          )
+            <div className="flex gap-2 mb-6">
+                <Button onClick={() => setIsCreating(true)} className="flex-1 shadow-md">
+                    <Plus size={20} /> New Trip
+                </Button>
+                <div className="relative flex-1">
+                   {joiningTripId === null ? (
+                       <Button variant="secondary" onClick={() => setJoiningTripId('')} className="w-full">
+                           Join with ID
+                       </Button>
+                   ) : (
+                       <form onSubmit={handleJoinTrip} className="flex gap-2 animate-in fade-in">
+                           <input 
+                              className="flex-1 min-w-0 bg-white border-2 border-brand rounded-full px-4 text-sm focus:outline-none"
+                              placeholder="Trip ID..."
+                              value={joiningTripId}
+                              onChange={e => setJoiningTripId(e.target.value)}
+                              autoFocus
+                           />
+                           <button type="submit" className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center flex-shrink-0">
+                               <ChevronRight size={20} />
+                           </button>
+                           <button type="button" onClick={() => setJoiningTripId(null)} className="w-10 h-10 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center flex-shrink-0">
+                               <Plus size={20} className="rotate-45" />
+                           </button>
+                       </form>
+                   )}
+                </div>
+            </div>
         )}
+
+        <div className="flex flex-col gap-4">
+           {loading && <div className="text-center text-gray-400 py-10 flex flex-col items-center gap-2"><Loader className="animate-spin" /> Loading trips...</div>}
+           
+           {!loading && trips.length === 0 && !errorState && (
+               <div className="text-center py-20 opacity-50">
+                   <div className="text-6xl mb-4">🌏</div>
+                   <h3 className="font-bold text-gray-500">No trips yet</h3>
+                   <p className="text-sm text-gray-400">Create one or join a friend!</p>
+               </div>
+           )}
+
+           {trips.map(trip => (
+             <Card 
+                key={trip.id} 
+                onClick={() => onSelectTrip(trip)}
+                className="group hover:border-brand/50 transition-colors relative overflow-hidden"
+             >
+                <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <MapPin size={60} className="text-brand rotate-12" />
+                </div>
+                <div className="relative z-10">
+                    <h3 className="font-bold text-xl text-ink font-rounded mb-1">{trip.title}</h3>
+                    <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">
+                        <span>{new Date(trip.startDate).getFullYear()}</span>
+                        <span>•</span>
+                        <span>{trip.allowedEmails?.length || 1} Travelers</span>
+                        {trip.ownerUid === user?.uid && <span className="text-brand bg-brand/10 px-1.5 py-0.5 rounded">Owner</span>}
+                    </div>
+                    
+                    <div className="flex gap-2">
+                        <div className="bg-yellow-100 text-yellow-700 text-[10px] font-bold w-8 h-8 rounded-full flex items-center justify-center border border-yellow-200 shadow-sm">
+                            {trip.title[0]}
+                        </div>
+                        {trip.allowedEmails.length > 1 && (
+                            <div className="bg-gray-100 text-gray-500 text-[10px] font-bold px-2 h-8 rounded-full flex items-center justify-center border border-gray-200">
+                                +{trip.allowedEmails.length - 1}
+                            </div>
+                        )}
+                    </div>
+                </div>
+             </Card>
+           ))}
+        </div>
       </Screen>
-    </>
+    </div>
   );
 };

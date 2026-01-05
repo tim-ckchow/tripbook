@@ -20,10 +20,6 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ trip }) => {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Transaction | null>(null);
-  
-  // Log Modal State
-  const [isLogOpen, setIsLogOpen] = useState(false);
-  const [logs, setLogs] = useState<any[]>([]);
 
   // Fetch Members
   useEffect(() => {
@@ -46,19 +42,6 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ trip }) => {
         });
     return () => unsub();
   }, [trip.id]);
-
-  // Fetch Logs (Lazy load only when modal opens theoretically, but simple here)
-  useEffect(() => {
-      if (isLogOpen) {
-          db.collection(`trips/${trip.id}/expense_logs`)
-            .orderBy('timestamp', 'desc')
-            .limit(20)
-            .get()
-            .then(snap => {
-                setLogs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-            });
-      }
-  }, [isLogOpen, trip.id]);
 
   // --- BALANCE CALCULATION ---
   const balances = useMemo(() => {
@@ -104,10 +87,46 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ trip }) => {
       return members.find(m => m.uid === uid)?.nickname || 'Unknown';
   };
 
+  // --- LOGGING HELPER ---
+  const logActivity = async (action: 'create' | 'update' | 'delete', title: string, details: string) => {
+    try {
+        await db.collection(`trips/${trip.id}/logs`).add({
+            tripId: trip.id,
+            timestamp: new Date().toISOString(),
+            category: 'expense',
+            action,
+            title,
+            details,
+            userUid: user?.uid || 'unknown',
+            userName: user?.displayName || user?.email?.split('@')[0] || 'Member'
+        });
+    } catch (err) {
+        console.error("Failed to log activity", err);
+    }
+  };
+
   const handleSave = async (data: any) => {
       try {
           if (editingItem) {
               await db.collection(`trips/${trip.id}/transactions`).doc(editingItem.id).update(data);
+              
+              const changes: string[] = [];
+              if (editingItem.amount !== data.amount) {
+                  changes.push(`Amount updated from ${formatMoney(editingItem.amount, editingItem.currency)} to ${formatMoney(data.amount, data.currency)}`);
+              }
+              if (editingItem.title !== data.title) {
+                  changes.push(`Title updated from "${editingItem.title}" to "${data.title}"`);
+              }
+              if (editingItem.splitAmong.length !== data.splitAmong.length) {
+                  changes.push(`Split participants updated from ${editingItem.splitAmong.length} to ${data.splitAmong.length}`);
+              }
+              if (editingItem.paidBy !== data.paidBy) {
+                  changes.push(`Payer updated from ${getMemberName(editingItem.paidBy)} to ${getMemberName(data.paidBy)}`);
+              }
+              
+              const logMsg = changes.length > 0 ? changes.join('\n') : 'Updated details';
+              logActivity('update', data.title, logMsg);
+
           } else {
               await db.collection(`trips/${trip.id}/transactions`).add({
                   ...data,
@@ -115,6 +134,17 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ trip }) => {
                   createdAt: new Date().toISOString(),
                   createdBy: user?.uid
               });
+              
+              const detailLines = [];
+              detailLines.push(`Amount: ${formatMoney(data.amount, data.currency)}`);
+              detailLines.push(`Paid By: ${getMemberName(data.paidBy)}`);
+              if (data.type === 'settlement') {
+                  detailLines.push(`To: ${getMemberName(data.splitAmong[0])}`);
+              } else {
+                  detailLines.push(`Split: ${data.splitAmong.length} people`);
+              }
+              
+              logActivity('create', data.title, detailLines.join('\n'));
           }
           setIsModalOpen(false);
           setEditingItem(null);
@@ -125,19 +155,19 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ trip }) => {
   };
 
   const handleDelete = async (id: string) => {
-      if (!confirm("Are you sure you want to delete this transaction?")) return;
+      // Removed native confirm: handled in UI
       try {
           const docRef = db.collection(`trips/${trip.id}/transactions`).doc(id);
           const docSnap = await docRef.get();
           if (docSnap.exists) {
               const data = docSnap.data();
-              // Create Audit Log
-              await db.collection(`trips/${trip.id}/expense_logs`).add({
-                  action: 'delete',
-                  transactionSnapshot: data,
-                  performedBy: user?.uid,
-                  timestamp: new Date().toISOString()
-              });
+              // Log to main activity log instead of expense_logs
+              const detailLines = [];
+              detailLines.push(`Amount: ${formatMoney(data?.amount || 0, data?.currency || 'JPY')}`);
+              detailLines.push(`Paid By: ${getMemberName(data?.paidBy)}`);
+              
+              logActivity('delete', data?.title || 'Transaction', detailLines.join('\n'));
+
               // Delete
               await docRef.delete();
           }
@@ -175,9 +205,6 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ trip }) => {
                       </div>
                   </div>
               </div>
-              <button onClick={() => setIsLogOpen(true)} className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors">
-                  <History size={18} />
-              </button>
           </div>
           <div className="mt-4 text-[10px] text-gray-500 flex gap-2">
               <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-300"></div> Owed to me</span>
@@ -274,38 +301,6 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ trip }) => {
         trip={trip}
         members={members}
       />
-
-      {/* LOG MODAL */}
-      {isLogOpen && (
-          <div className="fixed inset-0 bg-ink/50 z-[100] flex items-center justify-center backdrop-blur-sm p-6" onClick={() => setIsLogOpen(false)}>
-              <div className="bg-white w-full max-w-sm max-h-[70vh] rounded-3xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-                  <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                      <h3 className="font-bold font-rounded">Audit Log (Deletes)</h3>
-                      <button onClick={() => setIsLogOpen(false)}><X size={18}/></button>
-                  </div>
-                  <div className="p-4 overflow-y-auto flex-1 no-scrollbar space-y-3">
-                      {logs.length === 0 && <div className="text-center text-gray-400 text-xs py-4">No deletion logs found.</div>}
-                      {logs.map(log => (
-                          <div key={log.id} className="text-xs bg-red-50 p-3 rounded-xl border border-red-100">
-                              <div className="flex items-center gap-2 font-bold text-red-500 mb-1">
-                                  <Trash2 size={12} /> Transaction Deleted
-                              </div>
-                              <div className="text-gray-600 mb-1">
-                                  <span className="font-bold">{log.transactionSnapshot.title}</span> ({formatMoney(log.transactionSnapshot.amount, log.transactionSnapshot.currency)})
-                              </div>
-                              <div className="text-gray-400 text-[10px]">
-                                  Deleted by {getMemberName(log.performedBy)} on {new Date(log.timestamp).toLocaleString()}
-                              </div>
-                          </div>
-                      ))}
-                  </div>
-              </div>
-          </div>
-      )}
-
     </div>
   );
 };
-
-// Helper for log close
-const X = ({size}: {size:number}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;

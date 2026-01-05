@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ScheduleItem, ScheduleType, FlightDetails, Trip } from '../../types';
+import { ScheduleItem, ScheduleType, FlightDetails, Trip, ThemeColor } from '../../types';
 import { Button, Input } from '../../components/ui/Layout';
 import { Plane, X, Trash2 } from 'lucide-react';
 import { TypeIcon } from './ScheduleShared';
@@ -29,7 +29,8 @@ export const ScheduleEditModal: React.FC<ScheduleEditModalProps> = ({
     title: '',
     notes: '',
     locationLink: '',
-    participants: user?.email ? [user.email] : trip.allowedEmails
+    participants: user?.email ? [user.email] : trip.allowedEmails,
+    themeColor: 'blue' // Default
   });
   
   const [flightData, setFlightData] = useState<FlightDetails>({
@@ -48,7 +49,8 @@ export const ScheduleEditModal: React.FC<ScheduleEditModalProps> = ({
         title: itemToEdit.title,
         notes: itemToEdit.notes || '',
         locationLink: itemToEdit.locationLink || '',
-        participants: itemToEdit.participants || []
+        participants: itemToEdit.participants || [],
+        themeColor: itemToEdit.themeColor || 'blue'
       });
       if (itemToEdit.flightDetails) {
         setFlightData({ ...itemToEdit.flightDetails });
@@ -60,6 +62,10 @@ export const ScheduleEditModal: React.FC<ScheduleEditModalProps> = ({
         });
       }
     } else {
+      // Pick random color for new item
+      const colors: ThemeColor[] = ['blue', 'green', 'orange'];
+      const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
       // Reset for new item
       setNewItem(prev => ({ 
           ...prev, 
@@ -67,7 +73,8 @@ export const ScheduleEditModal: React.FC<ScheduleEditModalProps> = ({
           endDate: selectedDate,
           type: 'sightseeing',
           title: '', notes: '', locationLink: '', time: '09:00', endTime: '',
-          participants: user?.email ? [user.email] : trip.allowedEmails
+          participants: user?.email ? [user.email] : trip.allowedEmails,
+          themeColor: randomColor
       }));
       setFlightData({ 
           flightNumber: '', origin: 'ABC', destination: 'XYZ', arrivalTime: '', 

@@ -1,3 +1,4 @@
+
 // FIX: Add compat imports to define firebase types.
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/firestore';
@@ -34,6 +35,7 @@ export interface TripMember {
 // --- FEATURE-SPECIFIC TYPES ---
 
 export type ScheduleType = 'sightseeing' | 'food' | 'transport' | 'hotel' | 'flight';
+export type ThemeColor = 'blue' | 'green' | 'orange';
 
 export interface FlightDetails {
   flightNumber: string;
@@ -64,6 +66,7 @@ export interface ScheduleItem {
   notes?: string;
   participants?: string[]; // Array of emails
   flightDetails?: FlightDetails;
+  themeColor?: ThemeColor; // Added for UI persistence
   createdAt?: firebase.firestore.FieldValue; // serverTimestamp
 }
 
@@ -96,6 +99,22 @@ export interface ExpenseLog {
   transactionSnapshot: Transaction;
   performedBy: string; // uid
   timestamp: string;
+}
+
+// --- LOGGING SYSTEM ---
+export type LogCategory = 'plan' | 'booking' | 'expense' | 'member';
+export type LogAction = 'create' | 'update' | 'delete';
+
+export interface LogEntry {
+  id: string;
+  tripId: string;
+  timestamp: string; // ISO String
+  category: LogCategory;
+  action: LogAction;
+  title: string; // The name of the item changed
+  details: string; // Specifics (e.g., "Changed time to 10:00")
+  userUid: string;
+  userName: string; // Snapshot of name at time of log
 }
 
 

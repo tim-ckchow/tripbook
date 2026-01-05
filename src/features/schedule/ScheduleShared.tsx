@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScheduleType } from '../../types';
+import { ScheduleType, ThemeColor } from '../../types';
 import { MapPin, Coffee, Bed, Bus, Plane } from 'lucide-react';
 
 export const TypeIcon: React.FC<{ type: ScheduleType }> = ({ type }) => {
@@ -10,6 +10,48 @@ export const TypeIcon: React.FC<{ type: ScheduleType }> = ({ type }) => {
     case 'transport': return <Bus className="text-green-500" size={18} />;
     case 'flight': return <Plane className="text-brand" size={18} />;
   }
+};
+
+export const getTicketTheme = (color?: ThemeColor) => {
+    // Default to blue if undefined
+    const c = color || 'blue';
+    
+    switch (c) {
+        case 'green':
+            return {
+                border: 'border-brand',
+                bg: 'bg-brand/5',
+                headerBg: 'bg-brand/10',
+                headerBorder: 'border-brand/20',
+                text: 'text-brand',
+                icon: 'text-brand',
+                label: 'text-brand/60',
+                divider: 'border-brand/20'
+            };
+        case 'orange':
+            return {
+                border: 'border-orange-400',
+                bg: 'bg-orange-50',
+                headerBg: 'bg-orange-100',
+                headerBorder: 'border-orange-200',
+                text: 'text-orange-600',
+                icon: 'text-orange-500',
+                label: 'text-orange-400',
+                divider: 'border-orange-200'
+            };
+        case 'blue':
+        default:
+            return {
+                border: 'border-blue-400',
+                bg: 'bg-blue-50',
+                headerBg: 'bg-blue-100',
+                headerBorder: 'border-blue-200',
+                text: 'text-blue-600',
+                icon: 'text-blue-500',
+                label: 'text-blue-400',
+                divider: 'border-blue-200'
+            };
+    }
 };
 
 export const AvatarPile: React.FC<{ emails: string[], size?: 'sm' | 'md' }> = ({ emails, size = 'sm' }) => {

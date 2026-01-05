@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, Trip, TripMember } from '../../types';
 import { Button, Input } from '../../components/ui/Layout';
-import { X, ArrowRight, Trash2 } from 'lucide-react';
+import { X, ArrowRight, Trash2, Lock, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface TransactionEditModalProps {
@@ -32,6 +32,11 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
   
   // For Settlement: Single Select
   const [paidTo, setPaidTo] = useState<string>('');
+  
+  // Actions State
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (itemToEdit) {
@@ -59,18 +64,26 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
         setSplitAmong(allUids);
         setPaidTo('');
     }
+    
+    // Reset loading states
+    setIsDeleting(false);
+    setIsSaving(false);
+    setShowDeleteConfirm(false);
   }, [itemToEdit, isOpen, members, user]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
+    
     if (!amount || isNaN(Number(amount))) return alert("Invalid amount");
     if (type === 'expense' && splitAmong.length === 0) return alert("Select at least one person to split with");
     if (type === 'settlement' && !paidTo) return alert("Select who is receiving the money");
     if (type === 'settlement' && paidBy === paidTo) return alert("Cannot pay yourself");
 
-    onSave({
+    setIsSaving(true);
+    await onSave({
         type,
         title: type === 'settlement' ? 'Settlement' : title,
         amount: Number(amount),
@@ -79,6 +92,17 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
         paidBy,
         splitAmong: type === 'settlement' ? [paidTo] : splitAmong,
     });
+    setIsSaving(false);
+  };
+  
+  const handleConfirmDelete = async (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!itemToEdit || !onDelete) return;
+      setIsDeleting(true);
+      await onDelete(itemToEdit.id);
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
   };
 
   const toggleSplit = (uid: string) => {
@@ -100,7 +124,7 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
           
           <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
              <h3 className="font-bold text-lg font-rounded">{itemToEdit ? 'Edit Transaction' : 'New Transaction'}</h3>
-             <button onClick={onClose} className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500">
+             <button onClick={onClose} className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-red-500 transition-colors">
                 <X size={18} />
              </button>
           </div>
@@ -108,14 +132,21 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto no-scrollbar p-5 flex flex-col gap-5">
               
               {/* Type Switcher */}
-              <div className="bg-gray-100 p-1 rounded-xl flex">
-                  <button type="button" onClick={() => setType('expense')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${type === 'expense' ? 'bg-white text-ink shadow-sm' : 'text-gray-400'}`}>
-                      Expense
-                  </button>
-                  <button type="button" onClick={() => setType('settlement')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${type === 'settlement' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-400'}`}>
-                      Pay Back
-                  </button>
-              </div>
+              {itemToEdit ? (
+                  <div className="bg-gray-100 p-3 rounded-xl flex items-center justify-center gap-2 text-gray-400 font-bold text-sm">
+                      <Lock size={14} />
+                      <span>{type === 'expense' ? 'Expense' : 'Pay Back'}</span>
+                  </div>
+              ) : (
+                  <div className="bg-gray-100 p-1 rounded-xl flex">
+                      <button type="button" onClick={() => setType('expense')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${type === 'expense' ? 'bg-white text-ink shadow-sm' : 'text-gray-400'}`}>
+                          Expense
+                      </button>
+                      <button type="button" onClick={() => setType('settlement')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${type === 'settlement' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-400'}`}>
+                          Pay Back
+                      </button>
+                  </div>
+              )}
 
               {/* Amount Row */}
               <div className="flex gap-3">
@@ -227,15 +258,47 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
               <div className="h-6"></div>
           </form>
 
-          <div className="p-4 border-t border-gray-100 bg-gray-50 flex gap-3">
-             {itemToEdit && onDelete && (
-                 <button type="button" onClick={() => onDelete(itemToEdit.id)} className="w-12 h-12 rounded-full border-2 border-red-200 text-red-500 flex items-center justify-center hover:bg-red-50 transition-colors">
-                     <Trash2 size={20} />
-                 </button>
+          {/* Footer Action Bar */}
+          <div className="p-4 border-t border-gray-100 bg-gray-50">
+             {showDeleteConfirm ? (
+                 <div className="flex items-center gap-3 animate-in slide-in-from-bottom-2 fade-in">
+                     <div className="text-xs font-bold text-red-500 uppercase flex-1 flex items-center gap-2">
+                         <AlertTriangle size={16} /> Confirm Delete?
+                     </div>
+                     <Button 
+                        type="button" 
+                        variant="secondary" 
+                        onClick={(e) => { e.preventDefault(); setShowDeleteConfirm(false); }}
+                        className="!px-4 !py-2 text-sm"
+                     >
+                         Cancel
+                     </Button>
+                     <Button 
+                        type="button" 
+                        variant="danger" 
+                        onClick={handleConfirmDelete}
+                        disabled={isDeleting}
+                        className="!px-4 !py-2 text-sm"
+                     >
+                         {isDeleting ? 'Deleting...' : 'Yes, Delete'}
+                     </Button>
+                 </div>
+             ) : (
+                 <div className="flex gap-3">
+                     {itemToEdit && onDelete && (
+                         <button 
+                            type="button" 
+                            onClick={(e) => { e.preventDefault(); setShowDeleteConfirm(true); }}
+                            className="w-12 h-12 rounded-full border-2 border-red-200 text-red-500 flex items-center justify-center hover:bg-red-50 transition-colors active:scale-95"
+                         >
+                             <Trash2 size={20} />
+                         </button>
+                     )}
+                     <Button type="button" onClick={handleSubmit} className="w-full" disabled={isSaving}>
+                         {isSaving ? 'Saving...' : (itemToEdit ? 'Save Changes' : 'Add Transaction')}
+                     </Button>
+                 </div>
              )}
-             <Button type="button" onClick={handleSubmit} className="w-full">
-                 {itemToEdit ? 'Save Changes' : 'Add Transaction'}
-             </Button>
           </div>
 
        </div>

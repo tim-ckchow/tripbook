@@ -1,15 +1,16 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { db, firebase } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
-import { Trip, ScheduleItem, FlightDetails } from '../../types';
+import { Trip, ScheduleItem, FlightDetails, ThemeColor } from '../../types';
 import { Card } from '../../components/ui/Layout';
-import { Plane, Map, Bus, FileText, Luggage, Plus, Lock, MapPin } from 'lucide-react';
+import { Plane, Map, Bus, FileText, Luggage, Plus, Lock, MapPin, ArrowRight, RefreshCw } from 'lucide-react';
 import { Button } from '../../components/ui/Layout';
 
 // Shared Components
 import { SubTabButton, AvatarFilter } from './BookingsShared';
 import { BookingViewModal } from './BookingViewModal';
 import { BookingEditModal } from './BookingEditModal';
+import { ParticipantTags, getTicketTheme } from '../schedule/ScheduleShared';
 
 interface BookingsTabProps {
   trip: Trip;
@@ -29,12 +30,12 @@ function formatDateRange(start: string, end?: string) {
 }
 
 export const BookingsTab: React.FC<BookingsTabProps> = ({ trip, initialTab }) => {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<SubTab>('flight');
   const [items, setItems] = useState<ScheduleItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorState, setErrorState] = useState<{ code: string; message: string } | null>(null);
-  const [selectedPassenger, setSelectedPassenger] = useState<string | 'all'>('all');
+  const [selectedPassenger, setSelectedPassenger] = useState<string | 'all'>(user?.email || 'all');
   
   // Viewing State (Read Only)
   const [viewingItemId, setViewingItemId] = useState<string | null>(null);
@@ -69,6 +70,22 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip, initialTab }) =>
     return () => unsubscribe();
   }, [trip.id, activeTab]);
 
+  // Auto assign color if missing (same logic as ScheduleTab)
+  useEffect(() => {
+      if (items.length === 0) return;
+      const itemsMissingColor = items.filter(i => !i.themeColor);
+      
+      if (itemsMissingColor.length > 0) {
+          const colors: ThemeColor[] = ['blue', 'green', 'orange'];
+          itemsMissingColor.forEach(item => {
+              const randomColor = colors[Math.floor(Math.random() * colors.length)];
+              db.collection(`trips/${trip.id}/schedule`).doc(item.id).update({
+                  themeColor: randomColor
+              }).catch(err => console.warn("Failed to auto-assign color", err));
+          });
+      }
+  }, [items, trip.id]);
+
   const filteredItems = useMemo(() => {
     if (selectedPassenger === 'all') return items;
     return items.filter(item => !item.participants || item.participants.includes(selectedPassenger));
@@ -87,6 +104,24 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip, initialTab }) =>
   const handleEdit = (item: ScheduleItem) => {
       setEditingItem(item);
       setIsEditing(true);
+  };
+
+  // --- LOGGING HELPER ---
+  const logActivity = async (action: 'create' | 'update' | 'delete', title: string, details: string) => {
+    try {
+        await db.collection(`trips/${trip.id}/logs`).add({
+            tripId: trip.id,
+            timestamp: new Date().toISOString(),
+            category: 'booking',
+            action,
+            title,
+            details,
+            userUid: user?.uid || 'unknown',
+            userName: user?.displayName || user?.email?.split('@')[0] || 'Member'
+        });
+    } catch (err) {
+        console.error("Failed to log activity", err);
+    }
   };
 
   const handleSave = async (editForm: Partial<ScheduleItem>, flightForm: FlightDetails) => {
@@ -108,9 +143,50 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip, initialTab }) =>
 
           if (editingItem) {
              await db.collection(`trips/${trip.id}/schedule`).doc(editingItem.id).update(payload);
+             
+             const changes: string[] = [];
+             
+             // Diff Logic
+             const checkChange = (field: keyof ScheduleItem, label: string) => {
+                 if (editingItem[field] !== payload[field]) {
+                     changes.push(`${label} updated from "${editingItem[field]}" to "${payload[field]}"`);
+                 }
+             };
+             checkChange('title', 'Title');
+             checkChange('date', 'Date');
+             checkChange('time', 'Time');
+             checkChange('notes', 'Notes');
+
+             if (activeTab === 'flight' && editingItem.flightDetails && payload.flightDetails) {
+                 const oldF = editingItem.flightDetails;
+                 const newF = payload.flightDetails;
+                 if (oldF.seat !== newF.seat) changes.push(`Seat updated from "${oldF.seat}" to "${newF.seat}"`);
+                 if (oldF.gate !== newF.gate) changes.push(`Gate updated from "${oldF.gate}" to "${newF.gate}"`);
+                 if (oldF.bookingReference !== newF.bookingReference) changes.push(`Ref updated from "${oldF.bookingReference}" to "${newF.bookingReference}"`);
+             }
+
+             const logMsg = changes.length > 0 ? changes.join('\n') : 'Updated details';
+             logActivity('update', payload.title, logMsg);
+
           } else {
+             // Assign a random color if new
+             const colors: ThemeColor[] = ['blue', 'green', 'orange'];
+             payload.themeColor = colors[Math.floor(Math.random() * colors.length)];
+             
              payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
              await db.collection(`trips/${trip.id}/schedule`).add(payload);
+             
+             const detailLines = [];
+             detailLines.push(`Date: ${payload.date}`);
+             detailLines.push(`Time: ${payload.time}`);
+             if (activeTab === 'flight' && payload.flightDetails) {
+                 detailLines.push(`Flight: ${payload.flightDetails.flightNumber}`);
+                 detailLines.push(`Route: ${payload.flightDetails.origin} to ${payload.flightDetails.destination}`);
+             } else {
+                 detailLines.push(`Type: ${activeTab}`);
+             }
+             
+             logActivity('create', payload.title, detailLines.join('\n'));
           }
 
           setIsEditing(false);
@@ -122,9 +198,19 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip, initialTab }) =>
   };
 
   const handleDelete = async (id: string) => {
+    const itemToDelete = items.find(i => i.id === id);
     if (confirm("Delete this booking?")) {
         try {
             await db.collection(`trips/${trip.id}/schedule`).doc(id).delete();
+            if (itemToDelete) {
+                const detailLines = [];
+                detailLines.push(`Date: ${itemToDelete.date}`);
+                detailLines.push(`Time: ${itemToDelete.time}`);
+                if (itemToDelete.type === 'flight' && itemToDelete.flightDetails) {
+                    detailLines.push(`Flight: ${itemToDelete.flightDetails.flightNumber}`);
+                }
+                logActivity('delete', itemToDelete.title, detailLines.join('\n'));
+            }
             setIsEditing(false);
             setViewingItemId(null);
             setEditingItem(null);
@@ -181,67 +267,89 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip, initialTab }) =>
               </div>
           )}
 
-          {activeTab === 'flight' && filteredItems.map(item => (
-              <div key={item.id} className="relative group cursor-pointer" onClick={() => setViewingItemId(item.id)}>
-                  {/* TICKET VISUAL */}
-                  <div className="bg-white rounded-3xl shadow-soft overflow-hidden border border-[#E0E5D5]">
-                      <div className="bg-brand h-2 w-full"></div>
-                      <div className="p-5">
-                          <div className="flex justify-between items-start mb-6">
-                              <div>
-                                  <div className="text-4xl font-black text-ink tracking-tighter">{item.flightDetails?.origin}</div>
-                                  <div className="text-xs text-gray-400 font-bold uppercase mt-1">{item.date} • {item.time}</div>
+          {activeTab === 'flight' && filteredItems.map(item => {
+              const theme = getTicketTheme(item.themeColor);
+              
+              return (
+                  <div key={item.id} className="relative group cursor-pointer" onClick={() => setViewingItemId(item.id)}>
+                      {/* REDESIGN: Boxy Boarding Pass (Small Radius, Gray Border, Soft Shadow) */}
+                      <div className={`bg-white rounded-md shadow-soft border-2 border-gray-200 overflow-hidden transition-all group-hover:shadow-soft-hover group-hover:-translate-y-1`}>
+                          {/* Header */}
+                          <div className="p-3 bg-white border-b border-gray-100 flex justify-between items-center">
+                              <div className="flex items-center gap-2">
+                                  <Plane size={14} className="text-gray-400" />
+                                  <span className={`text-[9px] font-black uppercase tracking-[0.15em] ${theme.text}`}>Boarding Pass</span>
                               </div>
-                              <div className="flex flex-col items-center px-4 pt-2">
-                                  <Plane className="text-brand rotate-90" size={24} />
-                                  <div className="text-[10px] font-mono text-brand bg-brand/10 px-2 py-0.5 rounded mt-1">{item.flightDetails?.flightNumber}</div>
+                              {item.flightDetails?.bookingReference && (
+                                  <span className="text-[9px] font-sans font-medium text-gray-300">Ref: {item.flightDetails.bookingReference}</span>
+                              )}
+                          </div>
+                          
+                          <div className="p-5">
+                              {/* Soft UI Flight Box */}
+                              <div className="flex justify-center mb-6">
+                                <div className="px-6 py-3 rounded-2xl bg-white shadow-[4px_4px_10px_#e5e7eb,-4px_-4px_10px_#ffffff] border border-gray-50 flex flex-col items-center min-w-[140px]">
+                                    <div className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">Flight Number</div>
+                                    <div className="text-3xl font-black text-ink tracking-tight font-sans">{item.flightDetails?.flightNumber || 'TBD'}</div>
+                                </div>
                               </div>
-                              <div className="text-right">
-                                  <div className="text-4xl font-black text-ink tracking-tighter">{item.flightDetails?.destination}</div>
-                                  <div className="text-xs text-gray-400 font-bold uppercase mt-1">
-                                      {item.flightDetails?.arrivalDate && item.flightDetails.arrivalDate !== item.date ? item.flightDetails.arrivalDate : ''} {item.flightDetails?.arrivalTime}
+
+                              <div className="flex justify-between items-center mb-6 relative">
+                                  <div className="text-left">
+                                      <div className="text-3xl font-black text-ink font-sans">{item.flightDetails?.origin}</div>
+                                      <div className="text-[9px] font-bold uppercase mt-1 text-gray-400">{item.date} • {item.time}</div>
+                                  </div>
+                                  
+                                  <div className="flex-1 flex flex-col items-center px-2 relative -top-2">
+                                      <div className="w-full h-[2px] bg-gray-200 relative">
+                                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white p-1">
+                                              <Plane size={12} className="text-gray-300 rotate-90" />
+                                          </div>
+                                      </div>
+                                  </div>
+
+                                  <div className="text-right">
+                                      <div className="text-3xl font-black text-ink font-sans">{item.flightDetails?.destination}</div>
+                                      <div className="text-[9px] font-bold uppercase mt-1 text-gray-400">
+                                          {item.flightDetails?.arrivalDate && item.flightDetails.arrivalDate !== item.date ? item.flightDetails.arrivalDate : ''} {item.flightDetails?.arrivalTime}
+                                      </div>
+                                  </div>
+                              </div>
+
+                              {/* Details Grid */}
+                              <div className="grid grid-cols-3 gap-4 border-t border-gray-100 pt-4 mb-4">
+                                    <div className="text-center">
+                                        <div className="text-[9px] uppercase text-gray-400 font-bold tracking-wider mb-0.5">Terminal</div>
+                                        <div className="font-bold text-ink text-sm font-sans">{item.flightDetails?.terminal || '-'}</div>
+                                    </div>
+                                    <div className="text-center border-x border-gray-100">
+                                        <div className="text-[9px] uppercase text-gray-400 font-bold tracking-wider mb-0.5">Gate</div>
+                                        <div className="font-bold text-ink text-sm font-sans">{item.flightDetails?.gate || '-'}</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-[9px] uppercase text-gray-400 font-bold tracking-wider mb-0.5">Seat</div>
+                                        <div className="font-bold text-ink text-sm font-sans">{item.flightDetails?.seat || 'ANY'}</div>
+                                    </div>
+                              </div>
+
+                              <div className="flex justify-between items-center pt-2">
+                                  <div>
+                                      <div className="text-[9px] uppercase text-gray-400 font-bold tracking-wider mb-1">Passengers</div>
+                                      <ParticipantTags emails={item.participants || []} className="justify-start gap-1" />
                                   </div>
                               </div>
                           </div>
-
-                          <div className="grid grid-cols-3 gap-y-4 gap-x-2 border-t border-dashed border-gray-200 pt-4 mb-4">
-                                <div>
-                                    <div className="text-[9px] uppercase text-gray-400 font-bold tracking-wider mb-0.5">Terminal</div>
-                                    <div className="font-bold text-ink">{item.flightDetails?.terminal || '-'}</div>
-                                </div>
-                                <div>
-                                    <div className="text-[9px] uppercase text-gray-400 font-bold tracking-wider mb-0.5">Gate</div>
-                                    <div className="font-bold text-ink">{item.flightDetails?.gate || '-'}</div>
-                                </div>
-                                <div className="text-right">
-                                    <div className="text-[9px] uppercase text-gray-400 font-bold tracking-wider mb-0.5">Seat</div>
-                                    <div className="font-bold text-ink text-lg">{item.flightDetails?.seat || 'ANY'}</div>
-                                </div>
-                          </div>
-
-                          <div className="bg-gray-50 rounded-xl p-3 flex justify-between items-center border border-gray-100">
-                              <div>
-                                  <div className="text-[9px] uppercase text-gray-400 font-bold tracking-wider">Booking Ref</div>
-                                  <div className="font-mono font-bold text-ink tracking-widest">{item.flightDetails?.bookingReference || 'NO-REF'}</div>
-                              </div>
-                              <div className="opacity-20">
-                                  <div className="flex gap-0.5 h-8">
-                                      {[...Array(10)].map((_,i) => <div key={i} className={`w-${i%2===0?1:2} bg-black h-full`}></div>)}
-                                  </div>
-                              </div>
+                          
+                          {/* Visual Detail: Perforated Edge */}
+                          <div className="h-3 bg-gray-50 flex gap-1.5 px-2 border-t border-gray-100 overflow-hidden">
+                              {[...Array(20)].map((_, i) => (
+                                  <div key={i} className="w-3 h-3 rounded-full bg-white border border-gray-100 -mt-2"></div>
+                              ))}
                           </div>
                       </div>
                   </div>
-                  
-                  <div className="absolute -top-2 right-4 flex -space-x-1">
-                       {item.participants?.map((p, i) => (
-                           <div key={i} className="w-6 h-6 rounded-full bg-ink border-2 border-white text-white text-[8px] flex items-center justify-center font-bold">
-                               {p[0].toUpperCase()}
-                           </div>
-                       ))}
-                  </div>
-              </div>
-          ))}
+              );
+          })}
 
           {activeTab !== 'flight' && filteredItems.map(item => (
               <Card key={item.id} onClick={() => setViewingItemId(item.id)}>
