@@ -174,6 +174,8 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip, initialTab }) =>
              payload.themeColor = colors[Math.floor(Math.random() * colors.length)];
              
              payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+             payload.createdBy = user?.uid; // Security Requirement
+             
              await db.collection(`trips/${trip.id}/schedule`).add(payload);
              
              const detailLines = [];
@@ -216,7 +218,7 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip, initialTab }) =>
             setEditingItem(null);
         } catch(err) {
             console.error(err);
-            alert("Failed to delete.");
+            alert("Failed to delete. Only the Owner or the Author can delete this item.");
         }
     }
   };

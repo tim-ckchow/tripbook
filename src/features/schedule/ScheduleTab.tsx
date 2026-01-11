@@ -278,6 +278,8 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
 
       } else {
         payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+        payload.createdBy = user?.uid; // Security Requirement for Deletion Rules
+        
         await db.collection(`trips/${trip.id}/schedule`).add(payload);
         
         const detailLines = [];
@@ -294,7 +296,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
       setEditingItem(null);
     } catch (err) {
       console.error(err);
-      alert('Failed to save');
+      alert('Failed to save. You may not have permission.');
     }
   };
 
@@ -317,7 +319,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
             setViewingItemId(null);
         } catch (err) {
             console.error("Failed to delete", err);
-            alert("Could not delete item");
+            alert("Could not delete. Only the Owner or the Author can delete this item.");
         }
     }
   };

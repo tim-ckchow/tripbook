@@ -20,6 +20,7 @@ export interface Trip {
   endDate: string; // YYYY-MM-DD
   baseCurrency: string;
   allowedEmails: string[];
+  noticeBoard?: string; // HTML/Text content for important notices
   createdAt: string;
 }
 
@@ -67,6 +68,7 @@ export interface ScheduleItem {
   participants?: string[]; // Array of emails
   flightDetails?: FlightDetails;
   themeColor?: ThemeColor; // Added for UI persistence
+  createdBy?: string; // UID of author (Required for deletion permissions)
   createdAt?: firebase.firestore.FieldValue; // serverTimestamp
 }
 
