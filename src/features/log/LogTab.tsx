@@ -2,13 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { db } from '../../lib/firebase';
 import { Trip, LogEntry, LogCategory } from '../../types';
 import { Card } from '../../components/ui/Layout';
-import { Calendar, Map, CreditCard, Users, Clock, Filter, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Calendar, Map, CreditCard, Users, Clock, Plus, Edit2, Trash2, BookOpen } from 'lucide-react';
 
-interface LogTabProps {
+interface TripActivityLogProps {
   trip: Trip;
 }
 
-export const LogTab: React.FC<LogTabProps> = ({ trip }) => {
+export const TripActivityLog: React.FC<TripActivityLogProps> = ({ trip }) => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<LogCategory | 'all'>('all');
@@ -33,10 +33,10 @@ export const LogTab: React.FC<LogTabProps> = ({ trip }) => {
 
   const getIcon = (category: LogCategory) => {
     switch(category) {
-      case 'plan': return <Calendar size={16} className="text-blue-500" />;
-      case 'booking': return <Map size={16} className="text-purple-500" />;
-      case 'expense': return <CreditCard size={16} className="text-green-500" />;
-      case 'member': return <Users size={16} className="text-orange-500" />;
+      case 'plan': return <Calendar size={14} className="text-blue-500" />;
+      case 'booking': return <Map size={14} className="text-purple-500" />;
+      case 'expense': return <CreditCard size={14} className="text-green-500" />;
+      case 'member': return <Users size={14} className="text-orange-500" />;
     }
   };
 
@@ -51,9 +51,9 @@ export const LogTab: React.FC<LogTabProps> = ({ trip }) => {
 
   const getActionIcon = (action: string) => {
     switch(action) {
-        case 'create': return <Plus size={10} />;
-        case 'update': return <Edit2 size={10} />;
-        case 'delete': return <Trash2 size={10} />;
+        case 'create': return <Plus size={8} />;
+        case 'update': return <Edit2 size={8} />;
+        case 'delete': return <Trash2 size={8} />;
     }
   };
 
@@ -69,68 +69,74 @@ export const LogTab: React.FC<LogTabProps> = ({ trip }) => {
   };
 
   return (
-    <div className="pb-24 pt-4 flex flex-col gap-4">
+    <Card className="flex flex-col gap-4 max-h-[500px] shadow-sm border border-gray-200">
+      <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="bg-purple-100 p-1.5 rounded-lg text-purple-600">
+                <BookOpen size={16} />
+            </div>
+            <h3 className="font-bold text-lg text-ink">Activity Log</h3>
+          </div>
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-50 px-2 py-1 rounded-full border border-gray-100">
+              Recent 50
+          </div>
+      </div>
+
       {/* Filters */}
-      <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar px-1">
+      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
         {(['all', 'plan', 'booking', 'expense', 'member'] as const).map(cat => (
            <button
              key={cat}
              onClick={() => setFilter(cat)}
-             className={`px-4 py-2 rounded-full border-2 text-xs font-bold capitalize transition-all whitespace-nowrap ${filter === cat ? 'bg-ink text-white border-ink' : 'bg-white text-gray-400 border-gray-200'}`}
+             className={`px-3 py-1 rounded-lg border text-[10px] font-bold capitalize transition-all whitespace-nowrap ${filter === cat ? 'bg-ink text-white border-ink' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}
            >
-             {cat === 'all' ? 'All Activity' : cat + 's'}
+             {cat === 'all' ? 'All' : cat}
            </button>
         ))}
       </div>
 
-      {loading && <div className="text-center text-gray-400 py-10">Loading history...</div>}
+      <div className="overflow-y-auto pr-2 -mr-2 flex flex-col gap-0 min-h-[200px]">
+        {loading && <div className="text-center text-gray-400 py-10 text-xs">Loading history...</div>}
 
-      {!loading && filteredLogs.length === 0 && (
-          <div className="text-center py-20 opacity-50 flex flex-col items-center">
-              <Clock size={40} className="mb-4 text-gray-300" />
-              <h3 className="font-bold text-gray-400">No activity yet</h3>
-              <p className="text-xs text-gray-300 mt-1">Changes made to the trip will appear here.</p>
-          </div>
-      )}
+        {!loading && filteredLogs.length === 0 && (
+            <div className="text-center py-10 opacity-50 flex flex-col items-center">
+                <Clock size={32} className="mb-2 text-gray-300" />
+                <h3 className="font-bold text-gray-400 text-sm">No activity</h3>
+            </div>
+        )}
 
-      <div className="flex flex-col gap-4">
-          {filteredLogs.map((log) => (
-             <Card key={log.id} className="flex gap-4 relative overflow-hidden">
-                 {/* Timeline Line */}
-                 <div className="absolute left-[27px] top-10 bottom-0 w-[2px] bg-gray-100 -z-0"></div>
-
-                 <div className="relative z-10 flex flex-col items-center gap-1">
-                     <div className="w-10 h-10 rounded-full bg-white border-2 border-gray-100 shadow-sm flex items-center justify-center">
+        {filteredLogs.map((log) => (
+             <div key={log.id} className="flex gap-3 py-3 border-b border-gray-50 last:border-0 relative group hover:bg-gray-50/50 rounded-lg px-2 transition-colors">
+                 
+                 <div className="relative z-10 flex flex-col items-center gap-1 mt-0.5">
+                     <div className="w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center">
                          {getIcon(log.category)}
                      </div>
                  </div>
 
-                 <div className="flex-1 pt-1">
-                     <div className="flex justify-between items-start mb-1">
-                         <div className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full border flex items-center gap-1 w-fit ${getActionColor(log.action)}`}>
-                            {getActionIcon(log.action)} {log.action}
-                         </div>
-                         <div className="text-[10px] text-gray-400 font-medium">
+                 <div className="flex-1 min-w-0">
+                     <div className="flex justify-between items-start mb-0.5">
+                         <h4 className="font-bold text-ink text-xs leading-tight truncate pr-2">{log.title}</h4>
+                         <div className="text-[9px] text-gray-400 font-mono whitespace-nowrap">
                              {formatTime(log.timestamp)}
                          </div>
                      </div>
                      
-                     <h4 className="font-bold text-ink text-sm leading-tight mb-1">{log.title}</h4>
-                     {/* Updated: whitespace-pre-wrap to handle newlines for multiple changes */}
-                     <p className="text-xs text-gray-500 bg-gray-50 p-2 rounded-lg border border-gray-100 leading-relaxed whitespace-pre-wrap font-mono">
-                         {log.details}
-                     </p>
-                     
-                     <div className="mt-2 flex items-center gap-1.5">
-                         <div className="w-4 h-4 rounded-full bg-gray-200 flex items-center justify-center text-[8px] font-bold text-gray-500">
-                             {log.userName[0]?.toUpperCase()}
-                         </div>
-                         <span className="text-[10px] font-bold text-gray-400 uppercase">{log.userName}</span>
+                     <div className="flex items-center gap-2 mb-1">
+                        <div className={`text-[8px] font-bold uppercase px-1.5 py-0.5 rounded border flex items-center gap-1 w-fit ${getActionColor(log.action)}`}>
+                            {getActionIcon(log.action)} {log.action}
+                        </div>
+                        <span className="text-[9px] text-gray-400 font-bold">by {log.userName}</span>
                      </div>
+
+                     <p className="text-[10px] text-gray-500 leading-relaxed font-mono truncate opacity-80">
+                         {log.details.split('\n')[0]}
+                         {log.details.includes('\n') && '...'}
+                     </p>
                  </div>
-             </Card>
-          ))}
+             </div>
+        ))}
       </div>
-    </div>
+    </Card>
   );
 };
