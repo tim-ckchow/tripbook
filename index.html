@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#FFFFFF" />
     <meta name="description" content="Cozy group trip planner" />
+    <!-- Ensure Referer header is sent with API requests to satisfy Google Cloud restrictions -->
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <title>TripBook</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -56,7 +58,7 @@
 <style>
   body {
     /* Dot grid pattern for notebook look - Cool Version */
-    background-color: #ffffff;
+    background-color: #FFFFFF;
     background-image: radial-gradient(#E5E7EB 2px, transparent 2px);
     background-size: 24px 24px;
     -webkit-tap-highlight-color: transparent;
@@ -71,7 +73,6 @@
     scrollbar-width: none;
   }
 </style>
-<link rel="stylesheet" href="/index.css">
 </head>
   <body class="text-ink antialiased selection:bg-brand selection:text-white overscroll-none">
     <div id="root"></div>
