@@ -15,9 +15,15 @@ export const ScheduleViewModal: React.FC<ScheduleViewModalProps> = ({ item, onCl
 
   const getSafeLink = (link?: string) => {
     if (!link) return '';
-    if (link.startsWith('http://') || link.startsWith('https://')) return link;
-    return `https://${link}`;
+    const trimmed = link.trim();
+    // XSS Protection: Block malicious protocols
+    if (/^(javascript:|data:|vbscript:)/i.test(trimmed)) return '';
+    
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+    return `https://${trimmed}`;
   };
+
+  const safeLink = getSafeLink(item.locationLink);
 
   return (
       <div className="fixed inset-0 bg-ink/20 z-[100] flex items-end sm:items-center justify-center backdrop-blur-sm sm:p-4" onClick={onClose}>
@@ -58,8 +64,8 @@ export const ScheduleViewModal: React.FC<ScheduleViewModalProps> = ({ item, onCl
                    </div>
 
                    {/* Location */}
-                   {item.locationLink && (
-                       <a href={getSafeLink(item.locationLink)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-4 rounded-2xl bg-blue-50/50 border border-blue-100 hover:bg-blue-50 transition-colors group">
+                   {safeLink && (
+                       <a href={safeLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-4 rounded-2xl bg-blue-50/50 border border-blue-100 hover:bg-blue-50 transition-colors group">
                            <div className="bg-white p-2 rounded-full text-blue-500 shadow-sm">
                               <MapPin size={20} />
                            </div>

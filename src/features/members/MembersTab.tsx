@@ -4,8 +4,9 @@ import { db, firebase } from '../../lib/firebase';
 import { Trip, TripMember } from '../../types';
 import { Card, Button, Input } from '../../components/ui/Layout';
 import { useAuth } from '../../context/AuthContext';
-import { UserPlus, Crown, Check, Clock, Plus, LogOut, Trash2, AlertTriangle, UserMinus, Pin, Edit2, Save, X } from 'lucide-react';
+import { UserPlus, Crown, Check, Clock, Plus, LogOut, Trash2, AlertTriangle, UserMinus } from 'lucide-react';
 import { TripActivityLog } from '../log/LogTab';
+import { NoticeBoardCard } from '../shared/NoticeBoardCard';
 
 interface MembersTabProps {
   trip: Trip;
@@ -21,11 +22,6 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
   const [newEmail, setNewEmail] = useState('');
   const [addLoading, setAddLoading] = useState(false);
   
-  // Notice Board State
-  const [isEditingNotice, setIsEditingNotice] = useState(false);
-  const [noticeText, setNoticeText] = useState(trip.noticeBoard || '');
-  const [savingNotice, setSavingNotice] = useState(false);
-
   // Action State
   const [actionLoading, setActionLoading] = useState(false);
   
@@ -49,13 +45,6 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
     return () => unsubMembers();
   }, [trip.id]);
 
-  // Sync local notice text when trip updates from DB
-  useEffect(() => {
-      if (!isEditingNotice) {
-          setNoticeText(trip.noticeBoard || '');
-      }
-  }, [trip.noticeBoard, isEditingNotice]);
-
   // --- LOGGING HELPER ---
   const logActivity = async (action: 'create' | 'update' | 'delete', title: string, details: string) => {
     try {
@@ -72,22 +61,6 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
     } catch (err) {
         console.error("Failed to log activity", err);
     }
-  };
-
-  const handleSaveNotice = async () => {
-      setSavingNotice(true);
-      try {
-          await db.collection('trips').doc(trip.id).update({
-              noticeBoard: noticeText
-          });
-          setIsEditingNotice(false);
-          logActivity('update', 'Notice Board', 'Updated trip information details');
-      } catch (err) {
-          console.error(err);
-          alert("Failed to save notice.");
-      } finally {
-          setSavingNotice(false);
-      }
   };
 
   const handleAddMember = async (e: React.FormEvent) => {
@@ -131,9 +104,6 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
           // 2. Delete member doc.
           await db.collection(`trips/${trip.id}/members`).doc(user.uid).delete();
           
-          // Log is tricky here as we lose permission, but usually allows create before losing access fully or race condition
-          // We can try logging before deleting, but technically the action is "leaving"
-          
           // Exit to trip list
           onTripExit();
       } catch (err) {
@@ -175,9 +145,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
   const executeDeleteTrip = async () => {
       setActionLoading(true);
       try {
-          // Just delete the trip document as requested
           await db.collection('trips').doc(trip.id).delete();
-          // Exit handled by App.tsx listener mostly, but we call exit to be safe/responsive
           onTripExit();
       } catch (err) {
           console.error("Error deleting trip:", err);
@@ -221,7 +189,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
                   desc: 'You will lose access to the schedule and bookings. You will need to be re-invited to join again.',
                   action: 'Leave',
                   actionFn: executeLeaveTrip,
-                  variant: 'danger' as const // Using danger for leaving as it's destructive to access
+                  variant: 'danger' as const 
               };
       }
   };
@@ -231,61 +199,8 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
   return (
     <div className="flex flex-col gap-6 pt-4 pb-32">
       
-      {/* --- NOTICE BOARD --- */}
-      <Card className="bg-yellow-50 border-yellow-100 relative overflow-hidden">
-          {/* Decorative Pin */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-3 text-red-400 drop-shadow-sm z-10">
-              <Pin size={24} fill="currentColor" />
-          </div>
-
-          <div className="flex justify-between items-start mb-2 pt-2">
-              <h3 className="font-bold text-lg text-yellow-800 flex items-center gap-2">
-                  Trip Board
-              </h3>
-              {isOwner && !isEditingNotice && (
-                  <button 
-                    onClick={() => setIsEditingNotice(true)} 
-                    className="p-1.5 bg-yellow-100 rounded-full text-yellow-700 hover:bg-yellow-200 transition-colors"
-                  >
-                      <Edit2 size={14} />
-                  </button>
-              )}
-          </div>
-
-          {isEditingNotice ? (
-              <div className="flex flex-col gap-3 animate-in fade-in">
-                  <textarea 
-                      value={noticeText}
-                      onChange={(e) => setNoticeText(e.target.value)}
-                      placeholder="Enter emergency contacts, wifi passwords, insurance info..."
-                      className="w-full h-32 p-3 rounded-xl border-2 border-yellow-200 bg-white text-sm focus:outline-none focus:border-yellow-400 resize-none"
-                      autoFocus
-                  />
-                  <div className="flex gap-2 justify-end">
-                      <Button variant="ghost" onClick={() => setIsEditingNotice(false)} className="!px-3 !py-1 text-xs h-8">
-                          Cancel
-                      </Button>
-                      <Button onClick={handleSaveNotice} disabled={savingNotice} className="!px-4 !py-1 text-xs h-8 bg-yellow-500 border-yellow-500">
-                          {savingNotice ? 'Saving...' : 'Save Note'}
-                      </Button>
-                  </div>
-              </div>
-          ) : (
-              <div>
-                  {trip.noticeBoard ? (
-                      <p className="text-sm text-yellow-900/80 leading-relaxed whitespace-pre-wrap font-medium">
-                          {trip.noticeBoard}
-                      </p>
-                  ) : (
-                      <div className="text-center py-4 text-yellow-700/50">
-                          <p className="text-xs italic font-medium">
-                              {isOwner ? "Tap edit to add emergency contacts or important notes." : "No notices posted yet."}
-                          </p>
-                      </div>
-                  )}
-              </div>
-          )}
-      </Card>
+      {/* --- NOTICE BOARD (Refactored) --- */}
+      <NoticeBoardCard trip={trip} />
 
       {/* ADD MEMBER FORM */}
       <Card className="border-brand/30">
@@ -317,7 +232,6 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
         </h3>
         <div className="flex flex-col gap-3">
           {(trip.allowedEmails || []).map((email) => {
-            // Find if this email has a corresponding member doc (joined user)
             const memberDoc = members.find(m => m.email === email);
             const isMe = email === user?.email;
             
@@ -350,7 +264,6 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
                         </div>
                     )}
 
-                    {/* Remove Button: Only visible to owner, and cannot remove self */}
                     {isOwner && !isMe && (
                         <button 
                             onClick={() => setConfirmModal({ 
@@ -374,7 +287,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
         </div>
       </Card>
 
-      {/* ACTIVITY LOG - MOVED HERE */}
+      {/* ACTIVITY LOG */}
       <TripActivityLog trip={trip} />
       
       {/* DANGER ZONE ACTIONS */}
@@ -402,7 +315,6 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
           </div>
       </div>
 
-      {/* CONFIRMATION MODAL */}
       {confirmModal.isOpen && (
           <div className="fixed inset-0 bg-ink/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
               <Card className="w-full max-w-sm text-center">

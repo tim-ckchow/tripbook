@@ -10,6 +10,12 @@ export interface UserProfile {
   createdAt: string;
 }
 
+export interface WeatherLocation {
+  name: string;
+  lat: number;
+  lng: number;
+}
+
 export interface Trip {
   id: string;
   ownerUid: string;
@@ -19,6 +25,7 @@ export interface Trip {
   baseCurrency: string;
   allowedEmails: string[];
   noticeBoard?: string;
+  weatherLocations?: WeatherLocation[];
   createdAt: string;
 }
 
@@ -33,12 +40,12 @@ export interface TripMember {
 // --- APP NAVIGATION ---
 
 export enum AppTab {
+  Overview = 'overview',
   Schedule = 'schedule',
   Bookings = 'bookings',
   Expenses = 'expenses',
   Members = 'members',
   Planning = 'planning',
-  // Journal removed
 }
 
 // --- FEATURE-SPECIFIC TYPES ---

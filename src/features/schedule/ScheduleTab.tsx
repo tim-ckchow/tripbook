@@ -15,6 +15,7 @@ import { TripSettingsModal } from './TripSettingsModal';
 interface ScheduleTabProps {
   trip: Trip;
   onTabChange?: (tab: AppTab, subTab?: string) => void;
+  initialDate?: string;
 }
 
 // --- HELPERS ---
@@ -54,7 +55,7 @@ type DisplayItem = ScheduleItem & {
     sortTime: string;
 };
 
-export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) => {
+export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange, initialDate }) => {
   const { user, logout } = useAuth();
   const [items, setItems] = useState<ScheduleItem[]>([]);
   
@@ -90,6 +91,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
   }, [trip.startDate, trip.endDate, items]);
 
   const [selectedDate, setSelectedDate] = useState<string>(() => {
+      if (initialDate) return initialDate;
       const today = new Date().toISOString().split('T')[0];
       if (allDates.includes(today)) return today;
       return allDates[0] || trip.startDate;
@@ -412,6 +414,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange }) =
                     <button 
                         key={date}
                         onClick={() => setSelectedDate(date)}
+                        id={`date-${date}`}
                         className={`snap-start flex-shrink-0 flex flex-col items-center justify-center w-[72px] h-[84px] rounded-3xl border-2 transition-all duration-300 ${
                         isSelected 
                             ? 'bg-brand border-brand text-white shadow-md scale-105 rotate-1' 

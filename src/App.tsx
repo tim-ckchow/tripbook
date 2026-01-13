@@ -6,6 +6,7 @@ import { ScheduleTab } from './features/schedule/ScheduleTab';
 import { MembersTab } from './features/members/MembersTab';
 import { BookingsTab } from './features/bookings/BookingsTab'; 
 import { ExpensesTab } from './features/expenses/ExpensesTab';
+import { OverviewTab } from './features/overview/OverviewTab';
 import { TabBar } from './components/ui/TabBar';
 import { Screen, TopBar } from './components/ui/Layout';
 import { AppTab, Trip } from './types';
@@ -20,11 +21,12 @@ const AppContent: React.FC = () => {
   const [tripId, setTripId] = useState<string | null>(null);
   const [trip, setTrip] = useState<Trip | null>(null);
   
-  const [currentTab, setCurrentTab] = useState<AppTab>(AppTab.Schedule);
+  const [currentTab, setCurrentTab] = useState<AppTab>(AppTab.Overview);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   
-  // New state to control initial sub-tab in Bookings
+  // Tab State Control
   const [bookingsInitialTab, setBookingsInitialTab] = useState<'flight' | 'hotel' | 'transport' | 'general' | undefined>(undefined);
+  const [scheduleInitialDate, setScheduleInitialDate] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const handleStatusChange = () => setIsOffline(!navigator.onLine);
@@ -86,6 +88,9 @@ const AppContent: React.FC = () => {
             // Optimistically set trip to avoid flash of loading
             setTrip(t);
             setTripId(t.id);
+            setCurrentTab(AppTab.Overview); // Reset to overview on new trip select
+            setScheduleInitialDate(undefined);
+            setBookingsInitialTab(undefined);
         }} />
       </div>
     );
@@ -107,6 +112,18 @@ const AppContent: React.FC = () => {
       }
       setCurrentTab(tab);
   };
+  
+  const handleGoToSchedule = (date: string) => {
+      setScheduleInitialDate(date);
+      setCurrentTab(AppTab.Schedule);
+  };
+
+  const handleStandardTabSwitch = (tab: AppTab) => {
+      // Clear specific navigational states when user manually switches tabs
+      setScheduleInitialDate(undefined);
+      setBookingsInitialTab(undefined);
+      setCurrentTab(tab);
+  };
 
   // View: Trip Detail (Tabs)
   return (
@@ -123,13 +140,14 @@ const AppContent: React.FC = () => {
       />
       
       <Screen>
-        {currentTab === AppTab.Schedule && <ScheduleTab trip={trip} onTabChange={handleTabChange} />}
+        {currentTab === AppTab.Overview && <OverviewTab trip={trip} onNavigateToSchedule={handleGoToSchedule} />}
+        {currentTab === AppTab.Schedule && <ScheduleTab trip={trip} onTabChange={handleTabChange} initialDate={scheduleInitialDate} />}
         {currentTab === AppTab.Bookings && <BookingsTab trip={trip} initialTab={bookingsInitialTab} />}
         {currentTab === AppTab.Expenses && <ExpensesTab trip={trip} />}
         {currentTab === AppTab.Members && <MembersTab trip={trip} onTripExit={() => setTripId(null)} />}
         
         {/* Placeholders for other tabs */}
-        {(currentTab !== AppTab.Schedule && currentTab !== AppTab.Bookings && currentTab !== AppTab.Expenses && currentTab !== AppTab.Members) && (
+        {(currentTab === AppTab.Planning) && (
              <div className="text-center py-20 opacity-50">
                 <div className="text-4xl mb-4">🚧</div>
                 <h3 className="font-bold">Coming Soon</h3>
@@ -138,7 +156,7 @@ const AppContent: React.FC = () => {
         )}
       </Screen>
 
-      <TabBar currentTab={currentTab} onTabChange={setCurrentTab} />
+      <TabBar currentTab={currentTab} onTabChange={handleStandardTabSwitch} />
     </div>
   );
 };
