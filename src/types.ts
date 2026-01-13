@@ -1,5 +1,3 @@
-
-// FIX: Add compat imports to define firebase types.
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/firestore';
 
@@ -13,25 +11,35 @@ export interface UserProfile {
 }
 
 export interface Trip {
-  id: string; // Document ID
+  id: string;
   ownerUid: string;
   title: string;
-  startDate: string; // YYYY-MM-DD
-  endDate: string; // YYYY-MM-DD
+  startDate: string;
+  endDate: string;
   baseCurrency: string;
   allowedEmails: string[];
-  noticeBoard?: string; // HTML/Text content for important notices
+  noticeBoard?: string;
   createdAt: string;
 }
 
 export interface TripMember {
-  uid: string; // Corresponds to user's auth UID
+  uid: string;
   email: string;
   role: 'owner' | 'editor';
   nickname?: string;
   createdAt: string;
 }
 
+// --- APP NAVIGATION ---
+
+export enum AppTab {
+  Schedule = 'schedule',
+  Bookings = 'bookings',
+  Expenses = 'expenses',
+  Members = 'members',
+  Planning = 'planning',
+  // Journal removed
+}
 
 // --- FEATURE-SPECIFIC TYPES ---
 
@@ -44,89 +52,60 @@ export interface FlightDetails {
   terminal?: string;
   gate?: string;
   seat?: string;
-  origin: string; // Airport Code
-  destination: string; // Airport Code
-  arrivalTime?: string; // HH:mm
-  arrivalDate?: string; // YYYY-MM-DD
+  origin: string;
+  destination: string;
+  arrivalTime?: string;
+  arrivalDate?: string;
   bookingReference?: string;
   checkInTime?: string;
   baggageAllowanceKg?: string;
-  status?: string; // e.g. 'On Time', 'Delayed'
+  status?: string;
   lastUpdated?: string;
 }
 
 export interface ScheduleItem {
-  id: string; // Document ID
-  date: string; // YYYY-MM-DD (Start Date / Departure Date for flights)
-  time: string; // HH:mm (Start Time / Departure Time for flights)
-  endDate?: string; // YYYY-MM-DD (End Date / Check-out Date)
-  endTime?: string; // HH:mm (Optional End Time)
+  id: string;
   type: ScheduleType;
   title: string;
-  locationLink?: string;
-  notes?: string;
-  participants?: string[]; // Array of emails
+  date: string;
+  time: string;
+  endDate?: string;
+  endTime?: string;
+  participants?: string[];
+  themeColor?: ThemeColor;
   flightDetails?: FlightDetails;
-  themeColor?: ThemeColor; // Added for UI persistence
-  createdBy?: string; // UID of author (Required for deletion permissions)
-  createdAt?: firebase.firestore.FieldValue; // serverTimestamp
-}
-
-export interface TodoItem {
-  id: string; // Document ID
-  type: 'packing' | 'shopping' | 'general';
-  text: string;
-  assignedToUid: string | 'all';
-  done: boolean;
-  createdAt: string;
+  notes?: string;
+  locationLink?: string;
+  createdAt?: any;
+  createdBy?: string;
 }
 
 export interface Transaction {
   id: string;
   tripId: string;
+  type: 'expense' | 'settlement';
   title: string;
   amount: number;
   currency: 'JPY' | 'HKD';
+  paidBy: string;
+  splitAmong: string[];
   date: string;
-  paidBy: string; // uid of payer
-  splitAmong: string[]; // uids of people involved
-  type: 'expense' | 'settlement';
   createdAt: string;
-  createdBy: string;
+  createdBy?: string;
 }
 
-export interface ExpenseLog {
-  id: string;
-  action: 'delete' | 'create' | 'update';
-  transactionSnapshot: Transaction;
-  performedBy: string; // uid
-  timestamp: string;
-}
+// --- LOGGING ---
 
-// --- LOGGING SYSTEM ---
 export type LogCategory = 'plan' | 'booking' | 'expense' | 'member';
-export type LogAction = 'create' | 'update' | 'delete';
 
 export interface LogEntry {
   id: string;
   tripId: string;
-  timestamp: string; // ISO String
+  timestamp: string; // ISO string
   category: LogCategory;
-  action: LogAction;
-  title: string; // The name of the item changed
-  details: string; // Specifics (e.g., "Changed time to 10:00")
+  action: 'create' | 'update' | 'delete';
+  title: string;
+  details: string;
   userUid: string;
-  userName: string; // Snapshot of name at time of log
-}
-
-
-// --- APPLICATION UI TYPES ---
-
-export enum AppTab {
-  Schedule = 'schedule',
-  Bookings = 'bookings',
-  Expenses = 'expenses',
-  Journal = 'journal',
-  Planning = 'planning',
-  Members = 'members',
+  userName: string;
 }
