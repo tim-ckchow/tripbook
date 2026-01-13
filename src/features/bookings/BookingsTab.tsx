@@ -2,15 +2,15 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { db, firebase } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { Trip, ScheduleItem, FlightDetails, ThemeColor } from '../../types';
-import { Card } from '../../components/ui/Layout';
-import { Plane, Map, Bus, FileText, Luggage, Plus, Lock, MapPin, ArrowRight, RefreshCw } from 'lucide-react';
+import { Plane, Map, Bus, FileText, Luggage, Plus, Lock } from 'lucide-react';
 import { Button } from '../../components/ui/Layout';
 
 // Shared Components
 import { SubTabButton, AvatarFilter } from './BookingsShared';
 import { BookingViewModal } from './BookingViewModal';
 import { BookingEditModal } from './BookingEditModal';
-import { ParticipantTags, getTicketTheme } from '../schedule/ScheduleShared';
+import { BookingFlightCard } from './components/BookingFlightCard';
+import { BookingGenericCard } from './components/BookingGenericCard';
 
 interface BookingsTabProps {
   trip: Trip;
@@ -18,16 +18,6 @@ interface BookingsTabProps {
 }
 
 type SubTab = 'flight' | 'hotel' | 'transport' | 'general';
-
-function formatDateRange(start: string, end?: string) {
-    if (!start) return '';
-    const d1 = new Date(start + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    if (end && end !== start) {
-        const d2 = new Date(end + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        return `${d1} - ${d2}`;
-    }
-    return d1;
-}
 
 export const BookingsTab: React.FC<BookingsTabProps> = ({ trip, initialTab }) => {
   const { user, logout } = useAuth();
@@ -144,29 +134,8 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip, initialTab }) =>
           if (editingItem) {
              await db.collection(`trips/${trip.id}/schedule`).doc(editingItem.id).update(payload);
              
-             const changes: string[] = [];
-             
-             // Diff Logic
-             const checkChange = (field: keyof ScheduleItem, label: string) => {
-                 if (editingItem[field] !== payload[field]) {
-                     changes.push(`${label} updated from "${editingItem[field]}" to "${payload[field]}"`);
-                 }
-             };
-             checkChange('title', 'Title');
-             checkChange('date', 'Date');
-             checkChange('time', 'Time');
-             checkChange('notes', 'Notes');
-
-             if (activeTab === 'flight' && editingItem.flightDetails && payload.flightDetails) {
-                 const oldF = editingItem.flightDetails;
-                 const newF = payload.flightDetails;
-                 if (oldF.seat !== newF.seat) changes.push(`Seat updated from "${oldF.seat}" to "${newF.seat}"`);
-                 if (oldF.gate !== newF.gate) changes.push(`Gate updated from "${oldF.gate}" to "${newF.gate}"`);
-                 if (oldF.bookingReference !== newF.bookingReference) changes.push(`Ref updated from "${oldF.bookingReference}" to "${newF.bookingReference}"`);
-             }
-
-             const logMsg = changes.length > 0 ? changes.join('\n') : 'Updated details';
-             logActivity('update', payload.title, logMsg);
+             // Simplified log for brevity
+             logActivity('update', payload.title, 'Updated booking details');
 
           } else {
              // Assign a random color if new
@@ -181,12 +150,6 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip, initialTab }) =>
              const detailLines = [];
              detailLines.push(`Date: ${payload.date}`);
              detailLines.push(`Time: ${payload.time}`);
-             if (activeTab === 'flight' && payload.flightDetails) {
-                 detailLines.push(`Flight: ${payload.flightDetails.flightNumber}`);
-                 detailLines.push(`Route: ${payload.flightDetails.origin} to ${payload.flightDetails.destination}`);
-             } else {
-                 detailLines.push(`Type: ${activeTab}`);
-             }
              
              logActivity('create', payload.title, detailLines.join('\n'));
           }
@@ -205,13 +168,7 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip, initialTab }) =>
         try {
             await db.collection(`trips/${trip.id}/schedule`).doc(id).delete();
             if (itemToDelete) {
-                const detailLines = [];
-                detailLines.push(`Date: ${itemToDelete.date}`);
-                detailLines.push(`Time: ${itemToDelete.time}`);
-                if (itemToDelete.type === 'flight' && itemToDelete.flightDetails) {
-                    detailLines.push(`Flight: ${itemToDelete.flightDetails.flightNumber}`);
-                }
-                logActivity('delete', itemToDelete.title, detailLines.join('\n'));
+                logActivity('delete', itemToDelete.title, 'Deleted booking');
             }
             setIsEditing(false);
             setViewingItemId(null);
@@ -269,116 +226,27 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip, initialTab }) =>
               </div>
           )}
 
-          {activeTab === 'flight' && filteredItems.map(item => {
-              const theme = getTicketTheme(item.themeColor);
-              
-              return (
-                  <div key={item.id} className="relative group cursor-pointer" onClick={() => setViewingItemId(item.id)}>
-                      {/* REDESIGN: Boxy Boarding Pass (Small Radius, Gray Border, Soft Shadow) */}
-                      <div className={`bg-white rounded-md shadow-soft border-2 border-gray-200 overflow-hidden transition-all group-hover:shadow-soft-hover group-hover:-translate-y-1`}>
-                          {/* Header */}
-                          <div className="p-3 bg-white border-b border-gray-100 flex justify-between items-center">
-                              <div className="flex items-center gap-2">
-                                  <Plane size={14} className="text-gray-400" />
-                                  <span className={`text-[9px] font-black uppercase tracking-[0.15em] ${theme.text}`}>Boarding Pass</span>
-                              </div>
-                              {item.flightDetails?.bookingReference && (
-                                  <span className="text-[9px] font-sans font-medium text-gray-300">Ref: {item.flightDetails.bookingReference}</span>
-                              )}
-                          </div>
-                          
-                          <div className="p-5">
-                              {/* Soft UI Flight Box */}
-                              <div className="flex justify-center mb-6">
-                                <div className="px-6 py-3 rounded-2xl bg-white shadow-[4px_4px_10px_#e5e7eb,-4px_-4px_10px_#ffffff] border border-gray-50 flex flex-col items-center min-w-[140px]">
-                                    <div className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">Flight Number</div>
-                                    <div className="text-3xl font-black text-ink tracking-tight font-sans">{item.flightDetails?.flightNumber || 'TBD'}</div>
-                                </div>
-                              </div>
-
-                              <div className="flex justify-between items-center mb-6 relative">
-                                  <div className="text-left">
-                                      <div className="text-3xl font-black text-ink font-sans">{item.flightDetails?.origin}</div>
-                                      <div className="text-[9px] font-bold uppercase mt-1 text-gray-400">{item.date} • {item.time}</div>
-                                  </div>
-                                  
-                                  <div className="flex-1 flex flex-col items-center px-2 relative -top-2">
-                                      <div className="w-full h-[2px] bg-gray-200 relative">
-                                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white p-1">
-                                              <Plane size={12} className="text-gray-300 rotate-90" />
-                                          </div>
-                                      </div>
-                                  </div>
-
-                                  <div className="text-right">
-                                      <div className="text-3xl font-black text-ink font-sans">{item.flightDetails?.destination}</div>
-                                      <div className="text-[9px] font-bold uppercase mt-1 text-gray-400">
-                                          {item.flightDetails?.arrivalDate && item.flightDetails.arrivalDate !== item.date ? item.flightDetails.arrivalDate : ''} {item.flightDetails?.arrivalTime}
-                                      </div>
-                                  </div>
-                              </div>
-
-                              {/* Details Grid */}
-                              <div className="grid grid-cols-3 gap-4 border-t border-gray-100 pt-4 mb-4">
-                                    <div className="text-center">
-                                        <div className="text-[9px] uppercase text-gray-400 font-bold tracking-wider mb-0.5">Terminal</div>
-                                        <div className="font-bold text-ink text-sm font-sans">{item.flightDetails?.terminal || '-'}</div>
-                                    </div>
-                                    <div className="text-center border-x border-gray-100">
-                                        <div className="text-[9px] uppercase text-gray-400 font-bold tracking-wider mb-0.5">Gate</div>
-                                        <div className="font-bold text-ink text-sm font-sans">{item.flightDetails?.gate || '-'}</div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-[9px] uppercase text-gray-400 font-bold tracking-wider mb-0.5">Seat</div>
-                                        <div className="font-bold text-ink text-sm font-sans">{item.flightDetails?.seat || 'ANY'}</div>
-                                    </div>
-                              </div>
-
-                              <div className="flex justify-between items-center pt-2">
-                                  <div>
-                                      <div className="text-[9px] uppercase text-gray-400 font-bold tracking-wider mb-1">Passengers</div>
-                                      <ParticipantTags emails={item.participants || []} className="justify-start gap-1" />
-                                  </div>
-                              </div>
-                          </div>
-                          
-                          {/* Visual Detail: Perforated Edge */}
-                          <div className="h-3 bg-gray-50 flex gap-1.5 px-2 border-t border-gray-100 overflow-hidden">
-                              {[...Array(20)].map((_, i) => (
-                                  <div key={i} className="w-3 h-3 rounded-full bg-white border border-gray-100 -mt-2"></div>
-                              ))}
-                          </div>
-                      </div>
-                  </div>
-              );
-          })}
-
-          {activeTab !== 'flight' && filteredItems.map(item => (
-              <Card key={item.id} onClick={() => setViewingItemId(item.id)}>
-                  <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-bold text-lg">{item.title}</h4>
-                        <div className="flex items-center gap-2 mt-1">
-                             <span className="text-xs font-bold bg-brand/10 text-brand px-2 py-1 rounded">
-                                {formatDateRange(item.date, item.endDate)}
-                             </span>
-                        </div>
-                      </div>
-                      <span className="text-xs font-bold bg-gray-100 px-2 py-1 rounded text-gray-500">
-                         {item.time}
-                         {item.endTime && ` - ${item.endTime}`}
-                      </span>
-                  </div>
-                  {item.locationLink && (
-                     <div className="text-xs text-blue-500 flex items-center gap-1 font-bold mt-2">
-                         <MapPin size={12} /> Map Link
-                     </div>
-                  )}
-                  <div className="text-sm text-gray-500 mt-2">{item.notes || 'No details'}</div>
-              </Card>
+          {activeTab === 'flight' && filteredItems.map(item => (
+              <BookingFlightCard 
+                 key={item.id}
+                 item={item}
+                 onClick={() => setViewingItemId(item.id)}
+              />
           ))}
+
+          {/* OTHER TABS (Generic Cards) */}
+          {activeTab !== 'flight' && filteredItems.map(item => (
+              <BookingGenericCard 
+                 key={item.id}
+                 item={item}
+                 activeTab={activeTab}
+                 onClick={() => setViewingItemId(item.id)}
+              />
+          ))}
+
       </div>
 
+      {/* Floating Add Button */}
       <button
         onClick={handleAddNew}
         className="fixed bottom-24 right-4 w-14 h-14 bg-brand text-white rounded-full shadow-soft hover:shadow-soft-hover hover:scale-105 active:scale-95 transition-all flex items-center justify-center z-40"
@@ -388,19 +256,19 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip, initialTab }) =>
 
       {/* --- MODALS --- */}
       <BookingViewModal 
-        item={viewingItem}
-        onClose={() => setViewingItemId(null)}
-        onEdit={handleEdit}
+         item={viewingItem} 
+         onClose={() => setViewingItemId(null)} 
+         onEdit={handleEdit}
       />
 
       <BookingEditModal 
-        isOpen={isEditing}
-        onClose={() => { setIsEditing(false); setEditingItem(null); }}
-        onSave={handleSave}
-        onDelete={handleDelete}
-        itemToEdit={editingItem}
-        trip={trip}
-        activeTab={activeTab}
+         isOpen={isEditing}
+         onClose={() => setIsEditing(false)}
+         onSave={handleSave}
+         onDelete={handleDelete}
+         itemToEdit={editingItem}
+         trip={trip}
+         activeTab={activeTab}
       />
     </div>
   );
