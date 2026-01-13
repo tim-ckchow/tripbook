@@ -69,73 +69,79 @@ export const TripActivityLog: React.FC<TripActivityLogProps> = ({ trip }) => {
   };
 
   return (
-    <Card className="flex flex-col gap-4 max-h-[500px] shadow-sm border border-gray-200">
-      <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-          <div className="flex items-center gap-2">
-            <div className="bg-purple-100 p-1.5 rounded-lg text-purple-600">
-                <BookOpen size={16} />
-            </div>
-            <h3 className="font-bold text-lg text-ink">Activity Log</h3>
+    <Card className="flex flex-col h-[500px] shadow-sm border border-gray-200 !p-0 overflow-hidden bg-white">
+      {/* Sticky Header Section */}
+      <div className="flex-none p-5 pb-2 border-b border-gray-100 bg-white z-10">
+          <div className="flex justify-between items-center mb-3">
+              <div className="flex items-center gap-2">
+                <div className="bg-purple-100 p-1.5 rounded-lg text-purple-600">
+                    <BookOpen size={16} />
+                </div>
+                <h3 className="font-bold text-lg text-ink">Activity Log</h3>
+              </div>
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-50 px-2 py-1 rounded-full border border-gray-100">
+                  Recent 50
+              </div>
           </div>
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-50 px-2 py-1 rounded-full border border-gray-100">
-              Recent 50
+
+          {/* Filters */}
+          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+            {(['all', 'plan', 'booking', 'expense', 'member'] as const).map(cat => (
+              <button
+                key={cat}
+                onClick={() => setFilter(cat)}
+                className={`px-3 py-1 rounded-lg border text-[10px] font-bold capitalize transition-all whitespace-nowrap flex-shrink-0 ${filter === cat ? 'bg-ink text-white border-ink' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}
+              >
+                {cat === 'all' ? 'All' : cat}
+              </button>
+            ))}
           </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-        {(['all', 'plan', 'booking', 'expense', 'member'] as const).map(cat => (
-           <button
-             key={cat}
-             onClick={() => setFilter(cat)}
-             className={`px-3 py-1 rounded-lg border text-[10px] font-bold capitalize transition-all whitespace-nowrap ${filter === cat ? 'bg-ink text-white border-ink' : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'}`}
-           >
-             {cat === 'all' ? 'All' : cat}
-           </button>
-        ))}
-      </div>
+      {/* Scrollable List Section */}
+      <div className="flex-1 overflow-y-auto min-h-0 bg-white relative">
+        <div className="p-2 flex flex-col gap-0 pb-10">
+            {loading && <div className="text-center text-gray-400 py-10 text-xs">Loading history...</div>}
 
-      <div className="overflow-y-auto pr-2 -mr-2 flex flex-col gap-0 min-h-[200px]">
-        {loading && <div className="text-center text-gray-400 py-10 text-xs">Loading history...</div>}
+            {!loading && filteredLogs.length === 0 && (
+                <div className="text-center py-10 opacity-50 flex flex-col items-center">
+                    <Clock size={32} className="mb-2 text-gray-300" />
+                    <h3 className="font-bold text-gray-400 text-sm">No activity</h3>
+                </div>
+            )}
 
-        {!loading && filteredLogs.length === 0 && (
-            <div className="text-center py-10 opacity-50 flex flex-col items-center">
-                <Clock size={32} className="mb-2 text-gray-300" />
-                <h3 className="font-bold text-gray-400 text-sm">No activity</h3>
-            </div>
-        )}
-
-        {filteredLogs.map((log) => (
-             <div key={log.id} className="flex gap-3 py-3 border-b border-gray-50 last:border-0 relative group hover:bg-gray-50/50 rounded-lg px-2 transition-colors">
-                 
-                 <div className="relative z-10 flex flex-col items-center gap-1 mt-0.5">
-                     <div className="w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center">
-                         {getIcon(log.category)}
-                     </div>
-                 </div>
-
-                 <div className="flex-1 min-w-0">
-                     <div className="flex justify-between items-start mb-0.5">
-                         <h4 className="font-bold text-ink text-xs leading-tight truncate pr-2">{log.title}</h4>
-                         <div className="text-[9px] text-gray-400 font-mono whitespace-nowrap">
-                             {formatTime(log.timestamp)}
-                         </div>
-                     </div>
-                     
-                     <div className="flex items-center gap-2 mb-1">
-                        <div className={`text-[8px] font-bold uppercase px-1.5 py-0.5 rounded border flex items-center gap-1 w-fit ${getActionColor(log.action)}`}>
-                            {getActionIcon(log.action)} {log.action}
+            {filteredLogs.map((log) => (
+                <div key={log.id} className="flex gap-3 py-3 border-b border-gray-50 last:border-0 relative group hover:bg-gray-50/50 rounded-lg px-2 transition-colors shrink-0">
+                    
+                    <div className="relative z-10 flex flex-col items-center gap-1 mt-0.5">
+                        <div className="w-7 h-7 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center">
+                            {getIcon(log.category)}
                         </div>
-                        <span className="text-[9px] text-gray-400 font-bold">by {log.userName}</span>
-                     </div>
+                    </div>
 
-                     <p className="text-[10px] text-gray-500 leading-relaxed font-mono truncate opacity-80">
-                         {log.details.split('\n')[0]}
-                         {log.details.includes('\n') && '...'}
-                     </p>
-                 </div>
-             </div>
-        ))}
+                    <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-start mb-0.5">
+                            <h4 className="font-bold text-ink text-xs leading-tight truncate pr-2">{log.title}</h4>
+                            <div className="text-[9px] text-gray-400 font-mono whitespace-nowrap">
+                                {formatTime(log.timestamp)}
+                            </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 mb-1">
+                            <div className={`text-[8px] font-bold uppercase px-1.5 py-0.5 rounded border flex items-center gap-1 w-fit ${getActionColor(log.action)}`}>
+                                {getActionIcon(log.action)} {log.action}
+                            </div>
+                            <span className="text-[9px] text-gray-400 font-bold">by {log.userName}</span>
+                        </div>
+
+                        <p className="text-[10px] text-gray-500 leading-relaxed font-mono truncate opacity-80">
+                            {log.details.split('\n')[0]}
+                            {log.details.includes('\n') && '...'}
+                        </p>
+                    </div>
+                </div>
+            ))}
+        </div>
       </div>
     </Card>
   );
