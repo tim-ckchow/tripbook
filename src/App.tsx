@@ -6,7 +6,6 @@ import { ScheduleTab } from './features/schedule/ScheduleTab';
 import { MembersTab } from './features/members/MembersTab';
 import { BookingsTab } from './features/bookings/BookingsTab'; 
 import { ExpensesTab } from './features/expenses/ExpensesTab';
-import { LogTab } from './features/log/LogTab';
 import { TabBar } from './components/ui/TabBar';
 import { Screen, TopBar } from './components/ui/Layout';
 import { AppTab, Trip } from './types';
@@ -128,10 +127,9 @@ const AppContent: React.FC = () => {
         {currentTab === AppTab.Bookings && <BookingsTab trip={trip} initialTab={bookingsInitialTab} />}
         {currentTab === AppTab.Expenses && <ExpensesTab trip={trip} />}
         {currentTab === AppTab.Members && <MembersTab trip={trip} onTripExit={() => setTripId(null)} />}
-        {currentTab === AppTab.Journal && <LogTab trip={trip} />}
         
         {/* Placeholders for other tabs */}
-        {(currentTab !== AppTab.Schedule && currentTab !== AppTab.Bookings && currentTab !== AppTab.Expenses && currentTab !== AppTab.Members && currentTab !== AppTab.Journal) && (
+        {(currentTab !== AppTab.Schedule && currentTab !== AppTab.Bookings && currentTab !== AppTab.Expenses && currentTab !== AppTab.Members) && (
              <div className="text-center py-20 opacity-50">
                 <div className="text-4xl mb-4">🚧</div>
                 <h3 className="font-bold">Coming Soon</h3>
