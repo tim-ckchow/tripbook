@@ -5,6 +5,7 @@ import { Trip, TripMember } from '../../types';
 import { Card, Button, Input } from '../../components/ui/Layout';
 import { useAuth } from '../../context/AuthContext';
 import { UserPlus, Crown, Check, Clock, Plus, LogOut, Trash2, AlertTriangle, UserMinus, Pin, Edit2, Save, X } from 'lucide-react';
+import { TripActivityLog } from '../log/LogTab';
 
 interface MembersTabProps {
   trip: Trip;
@@ -372,6 +373,9 @@ export const MembersTab: React.FC<MembersTabProps> = ({ trip, onTripExit }) => {
           })}
         </div>
       </Card>
+
+      {/* ACTIVITY LOG - MOVED HERE */}
+      <TripActivityLog trip={trip} />
       
       {/* DANGER ZONE ACTIONS */}
       <div className="mt-4 px-2">
