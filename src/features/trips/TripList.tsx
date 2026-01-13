@@ -4,7 +4,7 @@ import { db, firebase } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { Trip } from '../../types';
 import { Screen, TopBar, Card, Button, Input } from '../../components/ui/Layout';
-import { Plus, ChevronRight, MapPin, RefreshCw, AlertTriangle, Loader, Lock } from 'lucide-react';
+import { Plus, MapPin, RefreshCw, AlertTriangle, Loader } from 'lucide-react';
 import { UserMenu } from '../../components/ui/UserMenu';
 
 interface TripListProps {
@@ -18,9 +18,6 @@ export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
   const [newTripTitle, setNewTripTitle] = useState('');
   const [loading, setLoading] = useState(true);
   const [errorState, setErrorState] = useState<{ code: string; message: string } | null>(null);
-  
-  // Track which trip is currently being joined
-  const [joiningTripId, setJoiningTripId] = useState<string | null>(null);
   
   // This state is used to force-restart the listener after a creation or manual retry
   const [retryTrigger, setRetryTrigger] = useState(0);
@@ -117,48 +114,6 @@ export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
     }
   };
 
-  const handleJoinTrip = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!user?.email || !joiningTripId) return;
-
-      setLoading(true);
-      try {
-          // 1. Check if trip exists
-          const tripRef = db.collection('trips').doc(joiningTripId);
-          const tripDoc = await tripRef.get();
-          
-          if (!tripDoc.exists) {
-              alert("Trip not found. Check the ID.");
-              setLoading(false);
-              return;
-          }
-
-          // 2. Add email to allowlist if not already present
-          await tripRef.update({
-             allowedEmails: firebase.firestore.FieldValue.arrayUnion(user.email)
-          });
-          
-          // 3. Create Member Record
-          await tripRef.collection('members').doc(user.uid).set({
-              uid: user.uid,
-              email: user.email,
-              role: 'editor',
-              nickname: user.displayName || user.email.split('@')[0],
-              createdAt: new Date().toISOString()
-          });
-
-          setJoiningTripId(null);
-          setRetryTrigger(prev => prev + 1);
-          alert("Joined successfully!");
-
-      } catch (err: any) {
-          console.error(err);
-          alert("Failed to join: " + err.message);
-      } finally {
-          setLoading(false);
-      }
-  };
-
   return (
     <div className="min-h-screen">
       <TopBar title="My Trips" rightAction={<UserMenu />} />
@@ -200,33 +155,10 @@ export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
              </form>
           </Card>
         ) : (
-            <div className="flex gap-2 mb-6">
-                <Button onClick={() => setIsCreating(true)} className="flex-1 shadow-md">
+            <div className="mb-6">
+                <Button onClick={() => setIsCreating(true)} className="w-full shadow-md">
                     <Plus size={20} /> New Trip
                 </Button>
-                <div className="relative flex-1">
-                   {joiningTripId === null ? (
-                       <Button variant="secondary" onClick={() => setJoiningTripId('')} className="w-full">
-                           Join with ID
-                       </Button>
-                   ) : (
-                       <form onSubmit={handleJoinTrip} className="flex gap-2 animate-in fade-in">
-                           <input 
-                              className="flex-1 min-w-0 bg-white border-2 border-brand rounded-full px-4 text-sm focus:outline-none"
-                              placeholder="Trip ID..."
-                              value={joiningTripId}
-                              onChange={e => setJoiningTripId(e.target.value)}
-                              autoFocus
-                           />
-                           <button type="submit" className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center flex-shrink-0">
-                               <ChevronRight size={20} />
-                           </button>
-                           <button type="button" onClick={() => setJoiningTripId(null)} className="w-10 h-10 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center flex-shrink-0">
-                               <Plus size={20} className="rotate-45" />
-                           </button>
-                       </form>
-                   )}
-                </div>
             </div>
         )}
 
@@ -237,7 +169,7 @@ export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
                <div className="text-center py-20 opacity-50">
                    <div className="text-6xl mb-4">🌏</div>
                    <h3 className="font-bold text-gray-500">No trips yet</h3>
-                   <p className="text-sm text-gray-400">Create one or join a friend!</p>
+                   <p className="text-sm text-gray-400">Create one or ask a friend to invite you!</p>
                </div>
            )}
 
@@ -245,7 +177,7 @@ export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
              <Card 
                 key={trip.id} 
                 onClick={() => onSelectTrip(trip)}
-                className="group hover:border-brand/50 transition-colors relative overflow-hidden"
+                className="group hover:border-brand/50 transition-colors relative overflow-hidden cursor-pointer"
              >
                 <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
                     <MapPin size={60} className="text-brand rotate-12" />
