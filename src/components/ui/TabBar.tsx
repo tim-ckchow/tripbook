@@ -1,6 +1,6 @@
 import React from 'react';
 import { AppTab } from '../../types';
-import { Calendar, Users, Map, CheckSquare, BookOpen, CreditCard } from 'lucide-react';
+import { Calendar, Users, Map, CheckSquare, CreditCard } from 'lucide-react';
 
 interface TabBarProps {
   currentTab: AppTab;
@@ -12,7 +12,6 @@ export const TabBar: React.FC<TabBarProps> = ({ currentTab, onTabChange }) => {
     { id: AppTab.Schedule, label: 'Plan', icon: Calendar },
     { id: AppTab.Bookings, label: 'Book', icon: Map },
     { id: AppTab.Expenses, label: 'Split', icon: CreditCard },
-    { id: AppTab.Journal, label: 'Log', icon: BookOpen },
     { id: AppTab.Planning, label: 'Todo', icon: CheckSquare },
     { id: AppTab.Members, label: 'Team', icon: Users },
   ];
