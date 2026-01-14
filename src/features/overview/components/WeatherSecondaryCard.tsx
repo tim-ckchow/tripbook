@@ -13,22 +13,32 @@ export const WeatherSecondaryCard: React.FC<{ city: CityForecast }> = ({ city })
                     <h3 className="text-2xl font-black font-rounded text-ink tracking-tight">{city.name}</h3>
                     <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">7 Day Forecast</div>
                  </div>
-                 {/* Current Icon Large */}
                  <div className="opacity-80">
                      {getWeatherIcon(city.current.code, 40)}
                  </div>
              </div>
 
-             <div className="flex justify-between gap-0.5">
-                 {city.daily.map((day, i) => (
+             <div className="flex justify-between gap-1">
+                 {city.daily.slice(0, 5).map((day, i) => (
                      <div key={i} className="flex flex-col items-center gap-1 flex-1">
-                         <span className="text-[11px] font-black font-rounded text-ink leading-none">
-                             {new Date(day.date).getDate()}
-                         </span>
-                         <span className="text-[8px] font-bold text-gray-400 uppercase">
-                             {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 2)}
-                         </span>
-                         <div className="my-1">{getWeatherIcon(day.code, 16)}</div>
+                         {/* Date */}
+                         <div className="flex flex-col items-center">
+                            <span className="text-[11px] font-black font-rounded text-ink leading-none">
+                                {new Date(day.date).getDate()}
+                            </span>
+                            <span className="text-[8px] font-bold text-gray-400 uppercase">
+                                {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 2)}
+                            </span>
+                         </div>
+                         
+                         {/* Split Icon AM/PM */}
+                         <div className="my-1 flex flex-col gap-1 items-center bg-gray-50 p-1 rounded-md">
+                             <div title="AM">{getWeatherIcon(day.amCode, 14)}</div>
+                             <div className="w-full h-px bg-gray-200"></div>
+                             <div title="PM">{getWeatherIcon(day.pmCode, 14)}</div>
+                         </div>
+
+                         {/* Temp */}
                          <div className="flex flex-col items-center">
                             <span className="text-[10px] font-bold text-ink">{Math.round(day.max)}°</span>
                             <span className="text-[9px] font-bold text-gray-300">{Math.round(day.min)}°</span>
