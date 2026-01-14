@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button, Input } from '../../../components/ui/Layout';
-import { X, Search, Loader, ArrowUp, ArrowDown, Trash2, Plus } from 'lucide-react';
+import { X, Search, Loader, ArrowUp, ArrowDown, Trash2, Plus, Activity, ExternalLink, Beaker } from 'lucide-react';
 import { WeatherLocation } from '../../../types';
 
 interface WeatherManageModalProps {
@@ -8,13 +8,22 @@ interface WeatherManageModalProps {
     onClose: () => void;
     locations: WeatherLocation[];
     onUpdateLocations: (locs: WeatherLocation[]) => Promise<void>;
+    betaEnabled: boolean;
+    onToggleBeta: () => void;
 }
 
-export const WeatherManageModal: React.FC<WeatherManageModalProps> = ({ isOpen, onClose, locations, onUpdateLocations }) => {
+export const WeatherManageModal: React.FC<WeatherManageModalProps> = ({ 
+    isOpen, onClose, locations, onUpdateLocations, betaEnabled, onToggleBeta 
+}) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [searchLoading, setSearchLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
+
+    // Diagnostics State
+    const [diagLoading, setDiagLoading] = useState(false);
+    const [diagResult, setDiagResult] = useState<string | null>(null);
+    const [diagUrl, setDiagUrl] = useState<string | null>(null);
 
     if (!isOpen) return null;
 
@@ -56,6 +65,40 @@ export const WeatherManageModal: React.FC<WeatherManageModalProps> = ({ isOpen, 
         await onUpdateLocations(currentLocs);
     };
 
+    const runDiagnostics = async () => {
+        if (locations.length === 0) return;
+        const loc = locations[0]; // Test the first location
+        setDiagLoading(true);
+        setDiagResult(null);
+
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lng}&current=weather_code&alerts=true&timezone=auto`;
+        setDiagUrl(url);
+
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+            
+            let report = `Location: ${loc.name}\n`;
+            report += `Status: ${res.status} ${res.statusText}\n`;
+            
+            if (data.alerts && Array.isArray(data.alerts)) {
+                report += `Alerts Found: ${data.alerts.length}\n`;
+                if (data.alerts.length > 0) {
+                    report += JSON.stringify(data.alerts, null, 2);
+                } else {
+                    report += "Note: Open-Meteo returns empty array if no official government warnings are active.";
+                }
+            } else {
+                report += "Alerts field missing in response.";
+            }
+            setDiagResult(report);
+        } catch (err: any) {
+            setDiagResult(`Error: ${err.message}`);
+        } finally {
+            setDiagLoading(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-ink/30 z-[100] flex items-end sm:items-center justify-center backdrop-blur-sm sm:p-4" onClick={onClose}>
             <div className="bg-white w-full max-w-md max-h-[85vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col animate-in slide-in-from-bottom-10 overflow-hidden pb-[env(safe-area-inset-bottom)]" onClick={e => e.stopPropagation()}>
@@ -63,7 +106,9 @@ export const WeatherManageModal: React.FC<WeatherManageModalProps> = ({ isOpen, 
                     <h3 className="font-bold text-lg font-rounded">Manage Locations</h3>
                     <button onClick={onClose} className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100"><X size={18} /></button>
                 </div>
+                
                 <div className="flex-1 overflow-y-auto p-4 no-scrollbar">
+                    {/* Saved Cities List */}
                     <div className="space-y-2 mb-6">
                         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">Saved Cities</label>
                         {locations.length === 0 && (<div className="text-center py-4 text-sm text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">No cities added yet.</div>)}
@@ -83,7 +128,9 @@ export const WeatherManageModal: React.FC<WeatherManageModalProps> = ({ isOpen, 
                             </div>
                         ))}
                     </div>
-                    <div className="pt-4 border-t border-gray-100">
+
+                    {/* Add New */}
+                    <div className="pt-4 border-t border-gray-100 mb-6">
                         <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-2">Add New City</label>
                         <form onSubmit={handleSearch} className="flex gap-2 mb-3">
                             <Input 
@@ -120,6 +167,55 @@ export const WeatherManageModal: React.FC<WeatherManageModalProps> = ({ isOpen, 
                             ))}
                         </div>
                     </div>
+
+                    {/* BETA FEATURES SECTION */}
+                    <div className="pt-4 border-t border-gray-100 mb-6">
+                        <label className="text-xs font-bold text-purple-400 uppercase tracking-wider block mb-2 flex items-center gap-1">
+                            <Beaker size={12} /> Weather Warnings (Beta)
+                        </label>
+                        <div className="bg-purple-50 border border-purple-100 p-4 rounded-xl">
+                            <div className="flex items-center gap-3">
+                                <input 
+                                    type="checkbox" 
+                                    id="jma-toggle" 
+                                    checked={betaEnabled} 
+                                    onChange={onToggleBeta}
+                                    className="w-5 h-5 text-brand rounded border-gray-300 focus:ring-brand"
+                                />
+                                <label htmlFor="jma-toggle" className="flex-1">
+                                    <div className="font-bold text-sm text-ink">Niseko JMA Feed</div>
+                                    <div className="text-xs text-gray-500">Enable direct warning feed from Japan Meteorological Agency for Niseko area.</div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Diagnostics Tool */}
+                    <div className="pt-4 border-t border-gray-100">
+                         <div className="flex items-center justify-between mb-3">
+                             <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Diagnostics</label>
+                             <button onClick={runDiagnostics} disabled={locations.length === 0 || diagLoading} className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded-md flex items-center gap-1 hover:bg-blue-100 disabled:opacity-50">
+                                 <Activity size={12} /> Test API
+                             </button>
+                         </div>
+                         
+                         {diagResult && (
+                             <div className="bg-gray-900 text-green-400 p-3 rounded-xl text-[10px] font-mono overflow-x-auto">
+                                 <pre>{diagResult}</pre>
+                                 {diagUrl && (
+                                     <a href={diagUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 mt-2 text-white underline decoration-dashed">
+                                         Open Raw JSON <ExternalLink size={10} />
+                                     </a>
+                                 )}
+                             </div>
+                         )}
+                         {locations.length > 0 && !diagResult && (
+                             <p className="text-[10px] text-gray-400">
+                                 Not seeing alerts? Click "Test API" to check if Open-Meteo is returning data.
+                             </p>
+                         )}
+                    </div>
+
                 </div>
             </div>
         </div>
