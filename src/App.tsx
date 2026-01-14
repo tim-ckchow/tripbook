@@ -67,6 +67,36 @@ const AppContent: React.FC = () => {
     return () => unsub();
   }, [tripId]);
 
+  // AUTO-JOIN: Ensure member document exists if user is allowed
+  useEffect(() => {
+    if (!trip || !user || !user.email) return;
+
+    // Only attempt to join if I am in the allow list
+    if (trip.allowedEmails && trip.allowedEmails.includes(user.email)) {
+        const checkAndJoin = async () => {
+            try {
+                const memberRef = db.collection(`trips/${trip.id}/members`).doc(user.uid);
+                const doc = await memberRef.get();
+                
+                // If doc doesn't exist, create it to move from "Pending" to "Joined"
+                if (!doc.exists) {
+                    console.log("[App] Auto-joining trip...");
+                    await memberRef.set({
+                        uid: user.uid,
+                        email: user.email,
+                        role: 'editor',
+                        nickname: user.displayName || user.email?.split('@')[0],
+                        createdAt: new Date().toISOString()
+                    });
+                }
+            } catch (err) {
+                console.warn("[App] Auto-join check failed:", err);
+            }
+        };
+        checkAndJoin();
+    }
+  }, [trip?.id, user?.uid]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
