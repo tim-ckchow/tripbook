@@ -4,6 +4,7 @@ import { Card } from '../../components/ui/Layout';
 import { Clock, ChevronRight, Calendar } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { TypeIcon } from '../schedule/ScheduleShared';
+import { useAuth } from '../../context/AuthContext';
 
 interface UpNextWidgetProps {
     tripId: string;
@@ -11,30 +12,37 @@ interface UpNextWidgetProps {
 }
 
 export const UpNextWidget: React.FC<UpNextWidgetProps> = ({ tripId, onNavigate }) => {
+    const { user } = useAuth();
     const [nextItem, setNextItem] = useState<ScheduleItem | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // FIX: Use local time instead of UTC (toISOString) to ensure we don't miss "today's" events
-        // due to timezone offsets.
+        // Use local time instead of UTC to ensure we don't miss "today's" events
         const now = new Date();
-        // Format: YYYY-MM-DD in local time
         const offset = now.getTimezoneOffset();
         const localDate = new Date(now.getTime() - (offset * 60 * 1000));
         const todayStr = localDate.toISOString().split('T')[0];
         
-        // Query items from today onwards
         const unsub = db.collection(`trips/${tripId}/schedule`)
             .where('date', '>=', todayStr)
             .orderBy('date', 'asc')
             .orderBy('time', 'asc')
-            .limit(10) // Limit to save bandwidth, we only need the first valid one
+            .limit(50) // Increased limit to ensure we find user-relevant items even if schedule is busy with others' plans
             .onSnapshot(snap => {
                 const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ScheduleItem));
                 
-                // Client side filtering: Find the first item that hasn't "passed" yet.
-                // We show items that started within the last hour (current) or are in the future.
+                // Client side filtering: Find the first item that hasn't "passed" yet AND allows this user.
                 const upcoming = items.find(item => {
+                    // 1. Check Participation
+                    // If participants array exists and is not empty, checks if user is in it.
+                    // If empty or undefined, assumes "Everyone"
+                    if (user?.email && item.participants && item.participants.length > 0) {
+                        if (!item.participants.includes(user.email)) {
+                            return false; // Skip this item, it's not for me
+                        }
+                    }
+
+                    // 2. Check Time
                     const itemDateTime = new Date(`${item.date}T${item.time}`);
                     // Buffer: Event remains "Up Next" for 1 hour after start time
                     const cutoffTime = new Date(Date.now() - 60 * 60 * 1000); 
@@ -46,11 +54,10 @@ export const UpNextWidget: React.FC<UpNextWidgetProps> = ({ tripId, onNavigate }
             });
         
         return () => unsub();
-    }, [tripId]);
+    }, [tripId, user]);
 
     if (loading) return null;
 
-    // Optional: Show a placeholder if nothing is up next (helps user know it's working)
     if (!nextItem) {
         return (
             <div className="animate-in slide-in-from-bottom-2 duration-500 opacity-60">
@@ -64,7 +71,7 @@ export const UpNextWidget: React.FC<UpNextWidgetProps> = ({ tripId, onNavigate }
                         <Calendar size={18} />
                     </div>
                     <div className="text-xs font-bold text-gray-400">
-                        No upcoming plans scheduled.
+                        No upcoming plans for you.
                     </div>
                 </div>
             </div>
