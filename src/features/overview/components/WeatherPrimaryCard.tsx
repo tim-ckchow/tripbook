@@ -1,14 +1,42 @@
 import React, { useState, useMemo } from 'react';
 import { Card } from '../../../components/ui/Layout';
-import { Loader, Wind, Droplets, CloudRain, ArrowUp, ArrowDown, Snowflake } from 'lucide-react';
-import { CityForecast, getWeatherIcon } from '../WeatherShared';
+import { Loader, Wind, Droplets, CloudRain, ArrowUp, ArrowDown, Snowflake, AlertTriangle, AlertOctagon, Megaphone } from 'lucide-react';
+import { CityForecast, getWeatherIcon, WeatherHazard } from '../WeatherShared';
 
 export const WeatherPrimaryCard: React.FC<{ city: CityForecast }> = ({ city }) => {
     const [selectedDateIndex, setSelectedDateIndex] = useState(0);
 
     const selectedDay = city.daily[selectedDateIndex];
     
-    // Filter hourly data for the selected day
+    // Get Official Alerts (from Open-Meteo)
+    // Only show official alerts if we are viewing "Today" (Index 0)
+    const hazards: WeatherHazard[] = (selectedDateIndex === 0 && city.officialAlerts) ? city.officialAlerts.map(alert => {
+        let level: WeatherHazard['level'] = 'warning'; // Default to warning for all official alerts
+        let icon = AlertTriangle;
+        
+        // Basic mapping based on keywords (works for English, limited for raw Japanese unless we add Japanese keywords)
+        // Note: JMA might return "Advisory" (注意報) or "Warning" (警報) in the 'event' field
+        const eventLower = (alert.event || '').toLowerCase();
+
+        if (eventLower.includes('emergency') || eventLower.includes('severe') || eventLower.includes('特别警報')) {
+            level = 'emergency';
+            icon = AlertOctagon;
+        } else if (eventLower.includes('advisory') || eventLower.includes('注意報')) {
+            level = 'advisory';
+            icon = AlertTriangle;
+        }
+
+        return {
+            type: 'general',
+            level,
+            title: alert.event, // This will likely be in Japanese for JMA
+            message: (alert.description || '').length > 100 ? (alert.description || '').substring(0, 100) + '...' : (alert.description || ''),
+            timing: 'Official Alert',
+            icon,
+            isOfficial: true
+        };
+    }) : [];
+
     const hourlyForDay = useMemo(() => {
         if (!city.hourly || !selectedDay) return [];
         const targetDate = selectedDay.date; 
@@ -24,16 +52,52 @@ export const WeatherPrimaryCard: React.FC<{ city: CityForecast }> = ({ city }) =
          );
     }
 
-    if (city.error || !city.current || !selectedDay) {
-        return (
-            <Card className="min-h-[200px] flex items-center justify-center text-red-300 bg-red-50/50">
-                <span className="text-xs font-bold">Weather Unavailable</span>
-            </Card>
-        );
-    }
+    if (city.error || !city.current || !selectedDay) return null;
+
+    // Helper for Banner Colors based on JMA standards
+    const getHazardStyles = (level: WeatherHazard['level'], isOfficial: boolean) => {
+        switch(level) {
+            case 'emergency': return { bg: 'bg-[#5B0F8B]', border: 'border-[#4A0070]', text: 'text-white', icon: 'text-yellow-300' }; // Purple/Black
+            case 'warning': return { bg: 'bg-[#D32F2F]', border: 'border-[#B71C1C]', text: 'text-white', icon: 'text-white' }; // Red
+            case 'advisory': default: return { bg: 'bg-[#FFEB3B]', border: 'border-[#FBC02D]', text: 'text-black', icon: 'text-black' }; // Yellow
+        }
+    };
 
     return (
         <Card className="!p-0 overflow-hidden border-blue-100 bg-white shadow-md relative">
+            
+            {/* --- OFFICIAL WARNING BANNER --- */}
+            {hazards.length > 0 && (
+                <div className="flex flex-col">
+                    {hazards.map((h, idx) => {
+                        const style = getHazardStyles(h.level, !!h.isOfficial);
+                        return (
+                            <div key={idx} className={`${style.bg} px-4 py-3 flex items-center gap-3 relative overflow-hidden border-b ${style.border}`}>
+                                <div className="absolute top-0 right-0 p-2 opacity-10 pointer-events-none">
+                                    <AlertOctagon size={60} />
+                                </div>
+                                <div className={`${style.icon} flex-shrink-0 animate-pulse`}>
+                                    <h.icon size={24} strokeWidth={2.5} />
+                                </div>
+                                <div className="flex-1 z-10">
+                                    <div className={`text-[10px] font-black uppercase tracking-widest ${style.text} opacity-80 flex justify-between`}>
+                                        <span className="flex items-center gap-1">
+                                            {h.isOfficial && <Megaphone size={10} />}
+                                            {h.level === 'emergency' ? 'EMERGENCY WARNING' : (h.level === 'warning' ? 'OFFICIAL WARNING' : 'ADVISORY')}
+                                        </span>
+                                        <span>{h.timing}</span>
+                                    </div>
+                                    <div className={`font-bold text-sm leading-tight ${style.text}`}>
+                                        {h.title}
+                                    </div>
+                                    <div className={`text-xs mt-0.5 ${style.text} opacity-90`}>{h.message}</div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
             {/* Top: Current Conditions */}
             <div className="bg-gradient-to-br from-blue-500 to-blue-400 text-white p-6 relative overflow-hidden">
                 <div className="absolute top-[-20px] right-[-20px] opacity-20">
@@ -84,7 +148,6 @@ export const WeatherPrimaryCard: React.FC<{ city: CityForecast }> = ({ city }) =
                              {selectedDay.precipProbMax > 20 && (
                                  <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-md flex items-center gap-1">
                                      <CloudRain size={10} /> {selectedDay.precipProbMax}%
-                                     {selectedDay.snowSum > 0 ? ` • ${selectedDay.snowSum}cm` : (selectedDay.precipSum > 0 ? ` • ${Math.round(selectedDay.precipSum)}mm` : ' Rain')}
                                  </span>
                              )}
                         </div>
@@ -125,9 +188,6 @@ export const WeatherPrimaryCard: React.FC<{ city: CityForecast }> = ({ city }) =
                             </div>
                         );
                     })}
-                    {hourlyForDay.length === 0 && (
-                        <div className="text-xs text-gray-400 py-4 italic">Hourly data not available for this date.</div>
-                    )}
                 </div>
             </div>
 
@@ -137,11 +197,14 @@ export const WeatherPrimaryCard: React.FC<{ city: CityForecast }> = ({ city }) =
                     {city.daily.map((day, idx) => {
                         const d = new Date(day.date);
                         const isSelected = selectedDateIndex === idx;
+                        // const dailyHazards = analyzeHazards(day, idx === 0); // Removed calculated
+                        // const hasWarning = dailyHazards.some(h => h.level === 'warning' || h.level === 'emergency'); // Removed
+
                         return (
                             <button 
                                 key={idx} 
                                 onClick={() => setSelectedDateIndex(idx)}
-                                className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-2xl flex-1 transition-all min-w-[50px] ${isSelected ? 'bg-ink text-white shadow-lg scale-105' : 'hover:bg-gray-50 text-gray-400'}`}
+                                className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-2xl flex-1 transition-all min-w-[50px] relative ${isSelected ? 'bg-ink text-white shadow-lg scale-105' : 'hover:bg-gray-50 text-gray-400'}`}
                             >
                                 <span className={`text-[11px] font-black font-rounded leading-none ${isSelected ? 'text-white' : 'text-ink'}`}>
                                     {d.getDate()}
