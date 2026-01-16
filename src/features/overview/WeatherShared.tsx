@@ -69,7 +69,7 @@ export interface JMAWarning {
     code: string;
     status: string;
     title: string; // Mapped from code
-    level: 'advisory' | 'warning' | 'emergency';
+    level: 'advisory' | 'warning' | 'emergency' | 'cleared';
 }
 
 // Mapping JMA codes to English Titles and Levels
