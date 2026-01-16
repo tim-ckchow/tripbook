@@ -2,12 +2,15 @@ import React from 'react';
 import { Card } from '../../../components/ui/Layout';
 import { CityForecast, getWeatherIcon } from '../WeatherShared';
 
-export const WeatherSecondaryCard: React.FC<{ city: CityForecast }> = ({ city }) => {
+export const WeatherSecondaryCard: React.FC<{ city: CityForecast; onClick?: () => void }> = ({ city, onClick }) => {
     if (city.loading) return <div className="min-w-[300px] h-44 bg-gray-50 rounded-3xl animate-pulse snap-center border border-gray-100"></div>;
     if (city.error || !city.current || !city.daily?.length) return null;
 
     return (
-        <Card className="min-w-[300px] snap-center !p-5 border border-gray-100 shadow-sm relative overflow-hidden bg-white">
+        <Card 
+            onClick={onClick}
+            className={`min-w-[300px] snap-center !p-5 border border-gray-100 shadow-sm relative overflow-hidden bg-white ${onClick ? 'cursor-pointer active:scale-95 hover:border-blue-200 transition-all' : ''}`}
+        >
              <div className="flex justify-between items-start mb-4">
                  <div>
                     <h3 className="text-2xl font-black font-rounded text-ink tracking-tight">{city.name}</h3>
