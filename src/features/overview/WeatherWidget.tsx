@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Trip, WeatherLocation } from '../../types';
 import { Plus, Settings, RefreshCw, AlertTriangle, CheckCircle2, ExternalLink, X } from 'lucide-react';
 import { db } from '../../lib/firebase';
@@ -35,6 +35,11 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ trip }) => {
     const [isManageModalOpen, setIsManageModalOpen] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+    // Local Preference State (Persisted in LocalStorage)
+    const [preferredCityName, setPreferredCityName] = useState<string | null>(() => {
+        return localStorage.getItem(`trip_${trip.id}_weather_pref`);
+    });
 
     // JMA Beta State
     const [jmaWarnings, setJmaWarnings] = useState<JMAWarning[]>([]);
@@ -115,11 +120,22 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ trip }) => {
                             nisekoFound = true;
                             foundWarnings = nisekoArea.warnings
                                 .filter((w: any) => 
-                                    w.status !== '解除' && // Not Cleared
-                                    w.status !== '発表なし' // Not "None"
+                                    w.status !== '発表なし' && // Not "None"
+                                    w.status !== '発表警報・注意報はなし' // No warnings issued
                                 )
                                 .map((w: any) => {
                                     const info = mapJMACode(w.code);
+                                    
+                                    // Handle "Released/Cleared" status specifically
+                                    if (w.status === '解除') {
+                                        return {
+                                            code: w.code,
+                                            status: w.status,
+                                            title: info.title,
+                                            level: 'cleared'
+                                        };
+                                    }
+
                                     return {
                                         code: w.code,
                                         status: w.status,
@@ -309,8 +325,26 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ trip }) => {
         }
     };
 
-    const primaryCity = cities[0];
-    const secondaryCities = cities.slice(1);
+    // --- SORTING LOGIC FOR LOCAL SWAP ---
+    // If a user clicks a city, we set it as preferred.
+    // The useMemo resorts the array based on that preference.
+    const handleCitySelect = (cityName: string) => {
+        setPreferredCityName(cityName);
+        localStorage.setItem(`trip_${trip.id}_weather_pref`, cityName);
+    };
+
+    const sortedCities = useMemo(() => {
+        if (!preferredCityName) return cities;
+        
+        return [...cities].sort((a, b) => {
+            if (a.name === preferredCityName) return -1; // Move to top
+            if (b.name === preferredCityName) return 1;
+            return 0; // Keep original order
+        });
+    }, [cities, preferredCityName]);
+
+    const primaryCity = sortedCities[0];
+    const secondaryCities = sortedCities.slice(1);
 
     return (
         <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-4 relative">
@@ -358,20 +392,10 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ trip }) => {
                     ) : (
                         <div 
                             onClick={openJmaRedirect}
-                            className="p-4 bg-[#00C853] !rounded-none border-2 border-green-800 flex items-center gap-3 cursor-pointer hover:bg-[#00E676] active:scale-95 transition-all group shadow-none relative overflow-hidden"
+                            className="py-3 px-4 rounded-xl border border-dashed border-gray-200 bg-gray-50/50 flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-100 transition-colors group"
                         >
-                            {/* Subtle Pattern */}
-                             <div className="absolute inset-0 pointer-events-none opacity-10 bg-[radial-gradient(circle,black_1px,transparent_1px)] bg-[length:10px_10px]"></div>
-
-                            <div className="w-10 h-10 border-2 border-white/30 text-white flex items-center justify-center relative z-10 bg-black/10">
-                                <CheckCircle2 size={20} />
-                            </div>
-                            <div className="flex-1 relative z-10">
-                                <div className="font-black text-white text-base uppercase tracking-tight leading-none mb-1">No Active Warnings</div>
-                                <div className="text-[10px] text-white/90 font-mono uppercase flex items-center gap-1">
-                                    Niseko (Shiribeshi) <ExternalLink size={10} className="opacity-50" />
-                                </div>
-                            </div>
+                            <CheckCircle2 size={16} className="text-gray-300 group-hover:text-green-500 transition-colors" />
+                            <span className="text-xs font-bold text-gray-400 group-hover:text-gray-600 transition-colors">No active warnings in Niseko</span>
                         </div>
                     )}
                 </div>
@@ -389,7 +413,11 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ trip }) => {
             {secondaryCities.length > 0 && (
                 <div className="flex overflow-x-auto gap-3 pb-2 -mx-4 px-4 no-scrollbar snap-x">
                     {secondaryCities.map((city, idx) => (
-                        <WeatherSecondaryCard key={idx} city={city} />
+                        <WeatherSecondaryCard 
+                            key={`${city.name}_${idx}`} 
+                            city={city} 
+                            onClick={() => handleCitySelect(city.name)}
+                        />
                     ))}
                 </div>
             )}
