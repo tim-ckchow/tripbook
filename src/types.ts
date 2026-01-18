@@ -26,6 +26,9 @@ export interface Trip {
   allowedEmails: string[];
   noticeBoard?: string;
   weatherLocations?: WeatherLocation[];
+  betaFeatures?: {
+    enableNisekoJMA?: boolean;
+  };
   createdAt: string;
 }
 
@@ -101,9 +104,18 @@ export interface Transaction {
   createdBy?: string;
 }
 
+export interface TodoItem {
+  id: string;
+  text: string;
+  isCompleted: boolean;
+  createdAt: any;
+  createdBy: string;
+  creatorName?: string; // Optional for display
+}
+
 // --- LOGGING ---
 
-export type LogCategory = 'plan' | 'booking' | 'expense' | 'member';
+export type LogCategory = 'plan' | 'booking' | 'expense' | 'member' | 'todo';
 
 export interface LogEntry {
   id: string;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ScheduleItem, ScheduleType, FlightDetails, Trip, ThemeColor } from '../../types';
-import { Button, Input } from '../../components/ui/Layout';
+import { Button, Input, TextArea } from '../../components/ui/Layout';
 import { Plane, X, Trash2 } from 'lucide-react';
 import { TypeIcon } from './ScheduleShared';
 import { useAuth } from '../../context/AuthContext';
@@ -176,9 +176,9 @@ export const ScheduleEditModal: React.FC<ScheduleEditModalProps> = ({
                     onChange={e => setNewItem({ ...newItem, locationLink: e.target.value })}
                  />
 
-                 <Input 
+                 <TextArea 
                     label="Notes"
-                    placeholder="Details, reservation #..."
+                    placeholder="Details, reservation #... (supports multi-line)"
                     value={newItem.notes} 
                     onChange={e => setNewItem({ ...newItem, notes: e.target.value })}
                  />

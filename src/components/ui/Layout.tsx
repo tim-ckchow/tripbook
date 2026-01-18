@@ -48,6 +48,20 @@ export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { lab
   );
 };
 
+export const TextArea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label?: string }> = ({ 
+  label, className = "", ...props 
+}) => {
+  return (
+    <div className="flex flex-col gap-1 w-full">
+      {label && <label className="text-sm font-bold text-gray-500 ml-3 uppercase tracking-wider text-[10px]">{label}</label>}
+      <textarea 
+        className={`bg-white border-2 border-gray-300 rounded-2xl px-5 py-3 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-base shadow-sm placeholder:text-gray-300 min-h-[100px] resize-none ${className}`} 
+        {...props} 
+      />
+    </div>
+  );
+};
+
 // --- LAYOUTS ---
 
 export const Screen: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = "" }) => (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ScheduleItem, FlightDetails, Trip } from '../../types';
-import { Button, Input } from '../../components/ui/Layout';
+import { Button, Input, TextArea } from '../../components/ui/Layout';
 import { X, Trash2 } from 'lucide-react';
 
 interface BookingEditModalProps {
@@ -165,11 +165,11 @@ export const BookingEditModal: React.FC<BookingEditModalProps> = ({
                     onChange={e => setEditForm({...editForm, locationLink: e.target.value})} 
                   />
 
-                  <Input 
+                  <TextArea 
                     label="Notes / Address" 
                     placeholder="Confirmation #, address, etc."
                     value={editForm.notes || ''} 
-                    onChange={e => setEditForm({...editForm, notes: e.target.value})} 
+                    onChange={e => setEditForm({...editForm, notes: e.target.value })} 
                   />
 
                   <div className="space-y-2 pt-2 border-t border-dashed border-gray-200">

@@ -7,6 +7,7 @@ import { MembersTab } from './features/members/MembersTab';
 import { BookingsTab } from './features/bookings/BookingsTab'; 
 import { ExpensesTab } from './features/expenses/ExpensesTab';
 import { OverviewTab } from './features/overview/OverviewTab';
+import { PlanningTab } from './features/planning/PlanningTab';
 import { TabBar } from './components/ui/TabBar';
 import { Screen, TopBar } from './components/ui/Layout';
 import { AppTab, Trip } from './types';
@@ -175,15 +176,7 @@ const AppContent: React.FC = () => {
         {currentTab === AppTab.Bookings && <BookingsTab trip={trip} initialTab={bookingsInitialTab} />}
         {currentTab === AppTab.Expenses && <ExpensesTab trip={trip} />}
         {currentTab === AppTab.Members && <MembersTab trip={trip} onTripExit={() => setTripId(null)} />}
-        
-        {/* Placeholders for other tabs */}
-        {(currentTab === AppTab.Planning) && (
-             <div className="text-center py-20 opacity-50">
-                <div className="text-4xl mb-4">🚧</div>
-                <h3 className="font-bold">Coming Soon</h3>
-                <p>This tab is under construction.</p>
-             </div>
-        )}
+        {currentTab === AppTab.Planning && <PlanningTab trip={trip} />}
       </Screen>
 
       <TabBar currentTab={currentTab} onTabChange={handleStandardTabSwitch} />

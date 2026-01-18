@@ -14,8 +14,13 @@ interface TripListProps {
 export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
   const { user } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
+  
+  // Creation State
   const [isCreating, setIsCreating] = useState(false);
   const [newTripTitle, setNewTripTitle] = useState('');
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  
   const [loading, setLoading] = useState(true);
   const [errorState, setErrorState] = useState<{ code: string; message: string } | null>(null);
   
@@ -75,6 +80,15 @@ export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
     return () => unsubscribe();
   }, [user, retryTrigger]);
 
+  const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newStart = e.target.value;
+      setStartDate(newStart);
+      // If new start date is after current end date, push end date forward
+      if (newStart > endDate) {
+          setEndDate(newStart);
+      }
+  };
+
   const handleCreateTrip = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.email || !newTripTitle.trim()) return;
@@ -87,8 +101,8 @@ export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
       const tripData = {
         ownerUid: user.uid,
         title: newTripTitle,
-        startDate: new Date().toISOString().split('T')[0],
-        endDate: new Date().toISOString().split('T')[0],
+        startDate: startDate,
+        endDate: endDate,
         baseCurrency: 'JPY',
         allowedEmails: [user.email],
         createdAt: new Date().toISOString()
@@ -105,8 +119,12 @@ export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
         createdAt: new Date().toISOString()
       });
 
+      // Reset form
       setNewTripTitle('');
+      setStartDate(new Date().toISOString().split('T')[0]);
+      setEndDate(new Date().toISOString().split('T')[0]);
       setIsCreating(false);
+      
       setRetryTrigger(prev => prev + 1); // Force refresh
     } catch (err: any) {
       console.error("Create Trip Error:", err);
@@ -143,12 +161,32 @@ export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
              <h3 className="font-bold text-lg mb-4">Start New Trip</h3>
              <form onSubmit={handleCreateTrip} className="flex flex-col gap-4">
                 <Input 
-                  placeholder="Trip Name (e.g. Japan 2024)" 
+                  label="Trip Name"
+                  placeholder="e.g. Japan 2024" 
                   value={newTripTitle}
                   onChange={e => setNewTripTitle(e.target.value)}
                   autoFocus
                 />
-                <div className="flex gap-2">
+                
+                <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100">
+                    <Input 
+                        label="Start Date"
+                        type="date"
+                        value={startDate}
+                        onChange={handleStartDateChange}
+                        required
+                    />
+                    <Input 
+                        label="End Date"
+                        type="date"
+                        value={endDate}
+                        min={startDate}
+                        onChange={e => setEndDate(e.target.value)}
+                        required
+                    />
+                </div>
+
+                <div className="flex gap-2 mt-2">
                    <Button type="button" variant="secondary" onClick={() => setIsCreating(false)} className="flex-1">Cancel</Button>
                    <Button type="submit" className="flex-1">Create</Button>
                 </div>

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { db } from '../../lib/firebase';
 import { Trip, LogEntry, LogCategory } from '../../types';
 import { Card } from '../../components/ui/Layout';
-import { Calendar, Map, CreditCard, Users, Clock, Plus, Edit2, Trash2, BookOpen, Filter } from 'lucide-react';
+import { Calendar, Map, CreditCard, Users, Clock, Plus, Edit2, Trash2, BookOpen, Filter, CheckSquare } from 'lucide-react';
 
 interface TripActivityLogProps {
   trip: Trip;
@@ -56,6 +56,7 @@ export const TripActivityLog: React.FC<TripActivityLogProps> = ({ trip }) => {
       case 'booking': return <Map size={14} className="text-purple-500" />;
       case 'expense': return <CreditCard size={14} className="text-green-500" />;
       case 'member': return <Users size={14} className="text-orange-500" />;
+      case 'todo': return <CheckSquare size={14} className="text-pink-500" />;
     }
   };
 
@@ -135,7 +136,7 @@ export const TripActivityLog: React.FC<TripActivityLogProps> = ({ trip }) => {
                 <div className="flex items-center gap-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider mr-2">
                     <Filter size={12} /> Type
                 </div>
-                {(['all', 'plan', 'booking', 'expense', 'member'] as const).map(cat => (
+                {(['all', 'plan', 'booking', 'expense', 'todo', 'member'] as const).map(cat => (
                   <button
                     key={cat}
                     onClick={() => setCategoryFilter(cat)}
