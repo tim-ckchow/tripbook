@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { db, firebase } from '../../../lib/firebase';
 import { Trip, TodoItem } from '../../../types';
 import { useAuth } from '../../../context/AuthContext';
@@ -16,6 +16,7 @@ export const TeamTodoList: React.FC<TeamTodoListProps> = ({ trip }) => {
     const [loading, setLoading] = useState(true);
     const [newTodo, setNewTodo] = useState('');
     const [isAdding, setIsAdding] = useState(false);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
     
     const isOwner = user?.uid === trip.ownerUid;
 
@@ -65,8 +66,11 @@ export const TeamTodoList: React.FC<TeamTodoListProps> = ({ trip }) => {
                 createdBy: user?.uid,
                 creatorName: user?.displayName || user?.email?.split('@')[0]
             });
-            logActivity('create', `Added task: ${text}`);
+            logActivity('create', `Added task: ${text.length > 20 ? text.substring(0, 20) + '...' : text}`);
             setNewTodo('');
+            if (textareaRef.current) {
+                textareaRef.current.style.height = 'auto';
+            }
         } catch (err: any) {
             console.error(err);
             alert(`Failed to add task: ${err.message}`);
@@ -83,7 +87,7 @@ export const TeamTodoList: React.FC<TeamTodoListProps> = ({ trip }) => {
             });
             if (item && !currentStatus) {
                 // Only log completion
-                logActivity('update', `Completed task: ${item.text}`);
+                logActivity('update', `Completed task: ${item.text.length > 20 ? item.text.substring(0, 20) + '...' : item.text}`);
             }
         } catch (err) {
             console.error("Failed to toggle", err);
@@ -92,10 +96,9 @@ export const TeamTodoList: React.FC<TeamTodoListProps> = ({ trip }) => {
 
     const handleDelete = async (id: string) => {
         const item = todos.find(t => t.id === id);
-        // UI Confirmation is now handled inside TodoItemCard
         try {
             await db.collection(`trips/${trip.id}/todos`).doc(id).delete();
-            if (item) logActivity('delete', `Deleted task: ${item.text}`);
+            if (item) logActivity('delete', `Deleted task: ${item.text.length > 20 ? item.text.substring(0, 20) + '...' : item.text}`);
         } catch (err: any) {
             console.error("Failed to delete", err);
             if (err.code === 'permission-denied') {
@@ -106,8 +109,33 @@ export const TeamTodoList: React.FC<TeamTodoListProps> = ({ trip }) => {
         }
     };
 
+    const handleEdit = async (id: string, newText: string) => {
+        try {
+            await db.collection(`trips/${trip.id}/todos`).doc(id).update({
+                text: newText
+            });
+        } catch (err: any) {
+            console.error("Failed to update", err);
+            alert("Failed to update task.");
+        }
+    };
+
     const activeTodos = todos.filter(t => !t.isCompleted);
     const completedTodos = todos.filter(t => t.isCompleted);
+
+    const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
+        e.currentTarget.style.height = 'auto';
+        e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        // Submit on Ctrl+Enter or Cmd+Enter only
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            handleAddTodo(e);
+        }
+        // Plain enter adds new line (default behavior)
+    };
 
     return (
         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-right-4">
@@ -123,17 +151,21 @@ export const TeamTodoList: React.FC<TeamTodoListProps> = ({ trip }) => {
                 </div>
 
                 <form onSubmit={handleAddTodo} className="relative">
-                    <input 
-                        type="text" 
+                    <textarea 
+                        ref={textareaRef}
+                        rows={1}
                         value={newTodo}
                         onChange={e => setNewTodo(e.target.value)}
-                        placeholder="Add a shared task..." 
-                        className="w-full pl-4 pr-12 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:bg-white/20 transition-colors backdrop-blur-sm"
+                        onInput={handleInput}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Add a shared task... (Enter for new line)" 
+                        className="w-full pl-4 pr-12 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:bg-white/20 transition-colors backdrop-blur-sm resize-none overflow-hidden min-h-[46px]"
+                        style={{ height: 'auto' }}
                     />
                     <button 
                         type="submit" 
                         disabled={!newTodo.trim() || isAdding}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white text-indigo-600 rounded-lg flex items-center justify-center font-bold disabled:opacity-50 active:scale-95 transition-transform"
+                        className="absolute right-2 bottom-2 w-8 h-8 bg-white text-indigo-600 rounded-lg flex items-center justify-center font-bold disabled:opacity-50 active:scale-95 transition-transform"
                     >
                         <Plus size={18} />
                     </button>
@@ -159,6 +191,7 @@ export const TeamTodoList: React.FC<TeamTodoListProps> = ({ trip }) => {
                         todo={todo} 
                         onToggle={handleToggle} 
                         onDelete={handleDelete} 
+                        onEdit={handleEdit}
                         showCreator={true}
                         isTripOwner={isOwner}
                     />
@@ -176,7 +209,8 @@ export const TeamTodoList: React.FC<TeamTodoListProps> = ({ trip }) => {
                                 key={todo.id} 
                                 todo={todo} 
                                 onToggle={handleToggle} 
-                                onDelete={handleDelete} 
+                                onDelete={handleDelete}
+                                onEdit={handleEdit}
                                 showCreator={true}
                                 isTripOwner={isOwner}
                             />
