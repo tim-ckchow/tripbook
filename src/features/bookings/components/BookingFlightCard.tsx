@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plane, ArrowRight, RefreshCw } from 'lucide-react';
+import { Plane, ExternalLink } from 'lucide-react';
 import { ScheduleItem } from '../../../types';
 import { ParticipantTags, getTicketTheme } from '../../schedule/ScheduleShared';
 
@@ -10,6 +10,8 @@ interface BookingFlightCardProps {
 
 export const BookingFlightCard: React.FC<BookingFlightCardProps> = ({ item, onClick }) => {
     const theme = getTicketTheme(item.themeColor);
+    const flightNum = item.flightDetails?.flightNumber;
+    const trackingLink = flightNum ? `https://www.flightradar24.com/data/flights/${flightNum.replace(/\s/g, '')}` : null;
               
     return (
         <div key={item.id} className="relative group cursor-pointer" onClick={onClick}>
@@ -78,9 +80,17 @@ export const BookingFlightCard: React.FC<BookingFlightCardProps> = ({ item, onCl
                             <div className="text-[9px] uppercase text-gray-400 font-bold tracking-wider mb-1">Passengers</div>
                             <ParticipantTags emails={item.participants || []} className="justify-start gap-1" />
                         </div>
-                        <button onClick={(e) => { e.stopPropagation(); /* Refresh Status Mock */ }} className="text-[9px] font-bold text-brand uppercase flex items-center gap-1 hover:underline">
-                            <RefreshCw size={10} /> Check Status
-                        </button>
+                        {trackingLink && (
+                            <a 
+                                href={trackingLink}
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                onClick={(e) => e.stopPropagation()} 
+                                className="text-[9px] font-bold text-brand uppercase flex items-center gap-1 hover:underline"
+                            >
+                                <ExternalLink size={10} /> Track on FlightRadar24
+                            </a>
+                        )}
                     </div>
                 </div>
 

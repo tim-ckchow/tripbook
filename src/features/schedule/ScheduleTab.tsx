@@ -66,7 +66,6 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange, ini
   const [loading, setLoading] = useState(true);
   const [errorState, setErrorState] = useState<{ code: string; message: string } | null>(null);
   const [retryTrigger, setRetryTrigger] = useState(0);
-  const [refreshingItems, setRefreshingItems] = useState<Set<string>>(new Set());
 
   // SETTINGS
   const [isEditingSettings, setIsEditingSettings] = useState(false);
@@ -153,34 +152,6 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange, ini
           });
       }
   }, [items, trip.id]);
-
-  // Auto-refresh flight status
-  useEffect(() => {
-    if(loading || items.length === 0) return;
-    items.forEach(item => {
-        if(item.type === 'flight' && item.flightDetails?.flightNumber && !item.flightDetails.status) {
-            refreshFlightStatus(item, true);
-        }
-    });
-  }, [items]);
-
-  const refreshFlightStatus = async (item: ScheduleItem, silent = false) => {
-    if (!item.flightDetails?.flightNumber || refreshingItems.has(item.id)) return;
-    if(!silent) setRefreshingItems(prev => new Set(prev).add(item.id));
-
-    await new Promise(r => setTimeout(r, 800));
-    const newStatus = 'Unavailable';
-
-    try {
-      await db.collection(`trips/${trip.id}/schedule`).doc(item.id).update({
-          'flightDetails.status': newStatus,
-          'flightDetails.lastUpdated': new Date().toISOString()
-      });
-    } catch (err) { console.error("Failed to update status", err); } 
-    finally {
-        if(!silent) setRefreshingItems(prev => { const next = new Set(prev); next.delete(item.id); return next; });
-    }
-  };
 
   const handleRetry = () => {
     setLoading(true);
@@ -424,7 +395,6 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange, ini
                              renderMode={item.renderMode} 
                              isLast={isLast} 
                              onClick={() => handleItemClick(item)}
-                             onRefreshStatus={refreshFlightStatus}
                           />
                       );
                   }

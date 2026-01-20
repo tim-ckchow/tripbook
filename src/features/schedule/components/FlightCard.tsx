@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plane, RefreshCw, ArrowRight } from 'lucide-react';
+import { Plane, ArrowRight, ExternalLink } from 'lucide-react';
 import { ScheduleItem } from '../../../types';
 import { ParticipantTags, getTicketTheme } from '../ScheduleShared';
 
@@ -8,25 +8,13 @@ interface FlightCardProps {
     renderMode: 'flight_dep' | 'flight_arr';
     isLast: boolean;
     onClick: () => void;
-    onRefreshStatus: (item: ScheduleItem) => void;
 }
 
-export const FlightCard: React.FC<FlightCardProps> = ({ item, renderMode, isLast, onClick, onRefreshStatus }) => {
+export const FlightCard: React.FC<FlightCardProps> = ({ item, renderMode, isLast, onClick }) => {
     const uniqueKey = `${item.id}_${renderMode}`;
-    const statusText = item.flightDetails?.status || 'Scheduled';
-    let statusColorClass = 'text-gray-500';
-    let statusDotClass = 'bg-gray-400';
-    let statusBgClass = 'bg-gray-50';
-    
-    if (statusText === 'Unavailable') {
-        statusColorClass = 'text-yellow-600'; statusDotClass = 'bg-yellow-500'; statusBgClass = 'bg-yellow-50';
-    } else if (statusText.toLowerCase().includes('delayed')) {
-        statusColorClass = 'text-orange-600'; statusDotClass = 'bg-orange-500'; statusBgClass = 'bg-orange-50';
-    } else if (statusText === 'On Time') {
-        statusColorClass = 'text-green-600'; statusDotClass = 'bg-green-500'; statusBgClass = 'bg-green-50';
-    }
-    
     const theme = getTicketTheme(item.themeColor);
+    const flightNum = item.flightDetails?.flightNumber;
+    const trackingLink = flightNum ? `https://www.flightradar24.com/data/flights/${flightNum.replace(/\s/g, '')}` : null;
 
     if (renderMode === 'flight_dep') {
         return (
@@ -88,18 +76,25 @@ export const FlightCard: React.FC<FlightCardProps> = ({ item, renderMode, isLast
                             </div>
                         </div>
 
-                        {/* Passengers & Status */}
+                        {/* Passengers & Tracking Link */}
                         <div className="flex justify-between items-end border-t border-gray-100 pt-4">
                             <div>
                                 <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Passengers</div>
                                 <ParticipantTags emails={item.participants || []} className="justify-start gap-1" />
                             </div>
                             
-                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${statusBgClass}`}>
-                                <div className={`w-1.5 h-1.5 rounded-full ${statusDotClass}`}></div>
-                                <span className={`text-[10px] font-bold uppercase tracking-wide ${statusColorClass}`}>{statusText}</span>
-                                <button onClick={(e) => { e.stopPropagation(); onRefreshStatus(item); }} className="ml-1 text-gray-400 hover:text-brand"><RefreshCw size={10} /></button>
-                            </div>
+                            {trackingLink && (
+                                <a 
+                                    href={trackingLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors border border-blue-100"
+                                >
+                                    <ExternalLink size={12} />
+                                    <span className="text-[10px] font-bold uppercase tracking-wide">Track Flight</span>
+                                </a>
+                            )}
                         </div>
                     </div>
                     
