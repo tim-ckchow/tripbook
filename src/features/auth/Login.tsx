@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 // FIX: Switched to v8 namespaced API
 import { auth, db, firebase } from '../../lib/firebase';
-import { Card, Screen, Input, Button } from '../../components/ui/Layout';
+import { Card, Screen, Button } from '../../components/ui/Layout';
 import { Sparkles } from 'lucide-react';
 import { PatchNotesModal } from '../../features/misc/PatchNotesModal';
 
@@ -11,11 +11,6 @@ export const Login: React.FC = () => {
   
   // Patch Notes State
   const [showPatchNotes, setShowPatchNotes] = useState(false);
-  
-  // Email/Pass State
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -46,44 +41,6 @@ export const Login: React.FC = () => {
     }
   };
 
-  const handleEmailAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) {
-        setError("Please enter email and password");
-        return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-        let result;
-        if (isSignUp) {
-            result = await auth.createUserWithEmailAndPassword(email, password);
-        } else {
-            result = await auth.signInWithEmailAndPassword(email, password);
-        }
-
-        if (result.user) {
-             const userRef = db.collection('users').doc(result.user.uid);
-             const doc = await userRef.get();
-             
-             if (!doc.exists) {
-                 await userRef.set({
-                    email: result.user.email?.toLowerCase(),
-                    displayName: email.split('@')[0], 
-                    photoURL: null,
-                    createdAt: new Date().toISOString(),
-                 });
-             }
-        }
-    } catch (err: any) {
-        console.error(err);
-        setError(err.message || "Authentication failed");
-        setLoading(false);
-    }
-  };
-
   return (
     <Screen className="flex flex-col justify-center min-h-screen">
       <div className="mb-8 text-center">
@@ -94,14 +51,18 @@ export const Login: React.FC = () => {
         <p className="text-gray-400 font-medium text-sm">Private Group Planner</p>
       </div>
 
-      <Card className="py-6 px-6">
-        {error && <div className="bg-red-50 text-red-500 text-xs font-bold p-3 rounded-xl border border-red-100 text-center mb-4">{error}</div>}
+      <Card className="py-8 px-6">
+        {error && <div className="bg-red-50 text-red-500 text-xs font-bold p-3 rounded-xl border border-red-100 text-center mb-6">{error}</div>}
+
+        <p className="text-center text-sm text-gray-500 mb-8 font-medium">
+          Sign in to collaborate on your next adventure with friends.
+        </p>
 
         <button 
             type="button"
             onClick={handleGoogleLogin}
             disabled={loading}
-            className="w-full bg-white border-2 border-[#E0E5D5] rounded-2xl py-3 font-bold text-ink flex items-center justify-center gap-3 transition-all active:scale-95 hover:-translate-y-0.5 shadow-sm hover:shadow-md disabled:opacity-70 disabled:pointer-events-none mb-6"
+            className="w-full bg-white border-2 border-[#E0E5D5] rounded-2xl py-4 font-bold text-ink flex items-center justify-center gap-3 transition-all active:scale-95 hover:-translate-y-0.5 shadow-sm hover:shadow-md disabled:opacity-70 disabled:pointer-events-none mb-2"
         >
             {loading ? (
                 <span className="text-sm">Connecting...</span>
@@ -117,49 +78,10 @@ export const Login: React.FC = () => {
                 </>
             )}
         </button>
-
-        <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200"></div>
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-gray-400 font-bold tracking-widest">Or test with</span>
-            </div>
-        </div>
-
-        <form onSubmit={handleEmailAuth} className="flex flex-col gap-3">
-            <Input 
-                placeholder="Email" 
-                type="email" 
-                value={email} 
-                onChange={e => setEmail(e.target.value)} 
-                className="!text-sm"
-            />
-            <Input 
-                placeholder="Password" 
-                type="password" 
-                value={password} 
-                onChange={e => setPassword(e.target.value)} 
-                className="!text-sm"
-            />
-            
-            <Button type="submit" disabled={loading} className="w-full mt-2">
-                {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Login')}
-            </Button>
-
-            <button 
-                type="button" 
-                onClick={() => setIsSignUp(!isSignUp)}
-                className="text-xs text-gray-400 mt-2 font-medium hover:text-brand underline"
-            >
-                {isSignUp ? "Already have an account? Login" : "Need a test account? Sign Up"}
-            </button>
-        </form>
-
       </Card>
       
       <div className="mt-8 text-center flex flex-col items-center gap-3">
-        <div className="text-xs text-gray-300">v1.0.1 (Test Mode)</div>
+        <div className="text-xs text-gray-300">v1.0.1</div>
         <button 
             onClick={() => setShowPatchNotes(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#E0E5D5] shadow-sm hover:shadow-md transition-all active:scale-95 group"
