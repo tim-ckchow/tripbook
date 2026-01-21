@@ -4,10 +4,20 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="https://api.iconify.design/noto:airplane.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    
+    <!-- PWA Settings -->
     <meta name="theme-color" content="#FFFFFF" />
     <meta name="description" content="Cozy group trip planner" />
+    
+    <!-- iOS Specific PWA Settings -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="TripBook" />
+    <link rel="apple-touch-icon" href="https://api.iconify.design/noto:airplane.svg" />
+    
     <!-- Ensure Referer header is sent with API requests to satisfy Google Cloud restrictions -->
     <meta name="referrer" content="strict-origin-when-cross-origin" />
+    
     <title>TripBook</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -62,6 +72,15 @@
     background-image: radial-gradient(#E5E7EB 2px, transparent 2px);
     background-size: 24px 24px;
     -webkit-tap-highlight-color: transparent;
+    /* Prevent text selection behaving like a website on mobile */
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  
+  /* Allow text selection in inputs/textareas */
+  input, textarea, [contenteditable] {
+    -webkit-user-select: text;
+    user-select: text;
   }
   
   /* Hide scrollbar for clean UI */
