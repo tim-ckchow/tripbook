@@ -47,7 +47,11 @@ const AppContent: React.FC = () => {
     }
 
     console.log(`[App] Listening to trip ${tripId}`);
+    
+    // CRITICAL UPDATE: { includeMetadataChanges: true }
+    // Ensures the Trip Object loads from cache instantly when offline.
     const unsub = db.collection('trips').doc(tripId).onSnapshot(
+        { includeMetadataChanges: true },
         (doc) => {
             if (doc.exists) {
                 setTrip({ id: doc.id, ...doc.data() } as Trip);

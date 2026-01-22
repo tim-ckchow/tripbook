@@ -103,35 +103,40 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange, ini
       .orderBy('date')
       .orderBy('time');
 
-    const unsubscribe = q.onSnapshot((snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ScheduleItem[];
-      setItems(data);
-      setLoading(false);
-      setErrorState(null);
-    }, (error: any) => {
-        console.error("Schedule snapshot error:", error);
-        if (error.code === 'failed-precondition' && error.message.includes('index')) {
-            setErrorState({
-                code: 'missing-index',
-                message: "Database index missing. Please check browser console."
-            });
-        } else if (error.code === 'permission-denied') {
-            setErrorState({
-                code: 'permission-denied',
-                message: "Permission denied."
-            });
-        } else {
-            setErrorState({
-                code: 'error',
-                message: "Failed to load schedule."
-            });
-        }
-        setItems([]);
+    // CRITICAL UPDATE: { includeMetadataChanges: true }
+    // Allows schedule to load instantly from cache
+    const unsubscribe = q.onSnapshot(
+      { includeMetadataChanges: true },
+      (snapshot) => {
+        const data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as ScheduleItem[];
+        setItems(data);
         setLoading(false);
-    });
+        setErrorState(null);
+      }, (error: any) => {
+          console.error("Schedule snapshot error:", error);
+          if (error.code === 'failed-precondition' && error.message.includes('index')) {
+              setErrorState({
+                  code: 'missing-index',
+                  message: "Database index missing. Please check browser console."
+              });
+          } else if (error.code === 'permission-denied') {
+              setErrorState({
+                  code: 'permission-denied',
+                  message: "Permission denied."
+              });
+          } else {
+              setErrorState({
+                  code: 'error',
+                  message: "Failed to load schedule."
+              });
+          }
+          setItems([]);
+          setLoading(false);
+      }
+    );
     return () => unsubscribe();
   }, [trip.id, retryTrigger]);
 
