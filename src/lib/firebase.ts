@@ -1,3 +1,4 @@
+
 // FIX: The Firebase imports and initialization logic were using the v9 modular syntax.
 // This was causing errors because the installed Firebase version is likely v8.
 // The file has been updated to use the v8 namespaced API syntax.
@@ -8,8 +9,8 @@ import 'firebase/compat/firestore';
 import 'firebase/compat/storage';
 
 // ---------------------------------------------------------
-// FIREBASE CONFIGURATION
-// Values loaded from .env.local
+// PLACEHOLDER CONFIGURATION
+// Replace these values with your actual Firebase project config
 // ---------------------------------------------------------
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -33,13 +34,25 @@ db.settings({
     cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
 });
 
+// --- EMULATOR CONNECTION ---
+// This block connects to the local Firebase emulators when running on localhost.
+// Make sure to run `firebase emulators:start` in your terminal.
+// FIX: Disabled by default to prevent connection errors if emulators are not running.
+// Set `useEmulators` to true only if you are running `firebase emulators:start` locally.
+const useEmulators = false; 
 
+if (window.location.hostname === 'localhost' && useEmulators) {
+  console.log('🏗️ Connecting to local Firebase emulators...');
+  // FIX: Switched to v8 syntax for connecting to emulators.
+  auth.useEmulator("http://localhost:9099");
+  db.useEmulator('localhost', 8080);
+}
 
 
 // Enable Offline Persistence
-// This should be done after emulator connection if applicable.
-// FIX: Switched to v8 syntax for enabling persistence.
-db.enablePersistence().catch((err) => {
+// UPDATED: Added synchronizeTabs: true. This is critical for PWAs.
+// It allows multiple tabs to share the local database (IndexedDB) without locking it.
+db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
   if (err.code == 'failed-precondition') {
     // Multiple tabs open, persistence can only be enabled in one tab at a a time.
     console.warn('Firebase persistence failed: Multiple tabs open.');
