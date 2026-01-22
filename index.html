@@ -91,11 +91,39 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  /* Custom Loading Bar */
+  .loading-bar {
+      width: 150px;
+      height: 4px;
+      background: #E5E7EB;
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 12px;
+  }
+  .loading-fill {
+      height: 100%;
+      background: #10B981;
+      width: 0%;
+      animation: loadProgress 2s ease-in-out infinite;
+  }
+  @keyframes loadProgress {
+      0% { width: 0%; margin-left: 0; }
+      50% { width: 70%; margin-left: 30%; }
+      100% { width: 0%; margin-left: 100%; }
+  }
 </style>
 </head>
   <body class="text-ink antialiased selection:bg-brand selection:text-white overscroll-none">
-    <div id="root" class="min-h-screen flex items-center justify-center">
-      <div class="animate-pulse text-brand font-bold font-rounded">Loading TripBook...</div>
+    <div id="root" class="min-h-screen flex flex-col items-center justify-center">
+      <div class="flex flex-col items-center animate-in fade-in zoom-in duration-700">
+        <img src="https://api.iconify.design/noto:airplane.svg" class="w-16 h-16 mb-4 animate-bounce" alt="Loading" />
+        <div class="text-brand font-bold font-rounded text-lg tracking-tight">TripBook</div>
+        <div class="loading-bar">
+            <div class="loading-fill"></div>
+        </div>
+        <div class="text-gray-300 text-xs font-bold mt-2">Initializing...</div>
+      </div>
     </div>
     <script type="module" src="/index.tsx"></script>
   </body>
