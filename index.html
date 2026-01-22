@@ -116,7 +116,7 @@
 </head>
   <body class="text-ink antialiased selection:bg-brand selection:text-white overscroll-none">
     <div id="root" class="min-h-screen flex flex-col items-center justify-center">
-      <div class="flex flex-col items-center animate-in fade-in zoom-in duration-700">
+      <div id="loading-ui" class="flex flex-col items-center animate-in fade-in zoom-in duration-700">
         <img src="https://api.iconify.design/noto:airplane.svg" class="w-16 h-16 mb-4 animate-bounce" alt="Loading" />
         <div class="text-brand font-bold font-rounded text-lg tracking-tight">TripBook</div>
         <div class="loading-bar">
@@ -125,6 +125,31 @@
         <div class="text-gray-300 text-xs font-bold mt-2">Initializing...</div>
       </div>
     </div>
+    
     <script type="module" src="/index.tsx"></script>
+
+    <!-- Fallback script if app doesn't load in 8 seconds -->
+    <script>
+        window.onload = function() {
+            setTimeout(function() {
+                const loader = document.getElementById('loading-ui');
+                // Check if React has taken over (loader would be removed or hidden)
+                // Note: React wipes the innerHTML of #root usually.
+                if (document.getElementById('root').innerHTML.includes('loading-ui')) {
+                    const root = document.getElementById('root');
+                    root.innerHTML = `
+                        <div class="flex flex-col items-center justify-center p-6 text-center animate-in fade-in">
+                             <div class="text-4xl mb-4 opacity-50">📡</div>
+                             <h3 class="font-bold text-lg text-ink mb-2">Offline Launch Failed</h3>
+                             <p class="text-sm text-gray-400 mb-6 max-w-xs">Some application files are missing from your device cache.</p>
+                             <button onclick="window.location.reload()" class="bg-brand text-white font-bold py-3 px-8 rounded-full shadow-lg hover:bg-emerald-600 transition-colors active:scale-95">
+                                Try Reconnecting
+                             </button>
+                        </div>
+                    `;
+                }
+            }, 8000);
+        };
+    </script>
   </body>
 </html>
