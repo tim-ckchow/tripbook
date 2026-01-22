@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tripbook-v7';
+const CACHE_NAME = 'tripbook-v8';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -6,7 +6,7 @@ const urlsToCache = [
   'https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap',
   '/index.tsx',
   '/manifest.webmanifest',
-  // Critical dependencies from import map - must match index.html exactly
+  // Critical dependencies
   'https://esm.sh/react@^19.2.3',
   'https://esm.sh/react-dom@^19.2.3/client',
   'https://esm.sh/firebase@^12.6.0/compat/app',
@@ -17,21 +17,14 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
+  self.skipWaiting(); // Activate immediately
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        // We use allowAll to ensure one failure doesn't break the whole install, 
-        // but for critical files we really want them all.
-        // However, esm.sh might have temporary issues, so we try our best.
-        // Ideally, we want to fail hard if criticals fail, but let's try to cache all.
-        return cache.addAll(urlsToCache).catch((err) => {
-             console.error("Failed to cache critical assets", err);
-             // We don't throw here to allow the SW to install even if one CDN asset fails,
-             // though the app might be broken offline without it.
-             // In production, you'd likely want to retry or handle this better.
-        });
-      })
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log('[SW] Caching critical assets');
+      return cache.addAll(urlsToCache).catch(err => {
+          console.error('[SW] Caching failed:', err);
+      });
+    })
   );
 });
 
@@ -41,29 +34,52 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
+            console.log('[SW] Clearing old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
     })
   );
-  self.clients.claim();
+  self.clients.claim(); // Take control of all clients immediately
 });
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // 1. IGNORE: Firebase API calls (Firestore/Auth) must go to network
+  // 1. IGNORE: Firebase API calls (Firestore/Auth) must go to network or be handled by Firebase SDK
   if (url.hostname.includes('googleapis.com') || 
       url.hostname.includes('firebase') ||
       url.hostname.includes('firestore')) {
     return;
   }
 
-  // 2. CACHE STRATEGY: Stale-While-Revalidate
+  // 2. NAVIGATION: Fix "No Internet" screen on reload
+  // If the user navigates to any URL (e.g., /trip/123), return index.html from cache
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.match('/index.html');
+      })
+    );
+    return;
+  }
+
+  // 3. ASSETS: Stale-While-Revalidate
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
+      // Return cached response immediately if available
       if (cachedResponse) {
+        // Update cache in background for next time
+        fetch(event.request).then((networkResponse) => {
+             if (networkResponse && networkResponse.status === 200 && (networkResponse.type === 'basic' || networkResponse.type === 'cors')) {
+                 const responseToCache = networkResponse.clone();
+                 caches.open(CACHE_NAME).then((cache) => {
+                     cache.put(event.request, responseToCache);
+                 });
+             }
+        }).catch(() => { /* mute network errors in background */ });
+        
         return cachedResponse;
       }
 
@@ -74,20 +90,17 @@ self.addEventListener('fetch', (event) => {
               return networkResponse;
             }
 
-            // Cache heavy libraries (esm.sh) and local files for future
-            // Also cache src files if they are requested (module loading)
-            if (url.hostname.includes('esm.sh') || url.origin === self.location.origin) {
-                const responseToCache = networkResponse.clone();
-                caches.open(CACHE_NAME).then((cache) => {
-                  cache.put(event.request, responseToCache);
-                });
-            }
+            // Cache new assets (esm.sh, images, etc)
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
 
             return networkResponse;
         })
         .catch((err) => {
-            // Network failed and not in cache.
-            console.error("Fetch failed (offline) and not in cache:", event.request.url);
+            console.error("[SW] Fetch failed:", event.request.url);
+            // Optionally return a fallback image if it was an image request
         });
     })
   );
