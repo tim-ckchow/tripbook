@@ -1,11 +1,19 @@
-const CACHE_NAME = 'tripbook-v4';
+const CACHE_NAME = 'tripbook-v7';
 const urlsToCache = [
   '/',
   '/index.html',
   'https://cdn.tailwindcss.com',
   'https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap',
   '/index.tsx',
-  '/manifest.webmanifest'
+  '/manifest.webmanifest',
+  // Critical dependencies from import map - must match index.html exactly
+  'https://esm.sh/react@^19.2.3',
+  'https://esm.sh/react-dom@^19.2.3/client',
+  'https://esm.sh/firebase@^12.6.0/compat/app',
+  'https://esm.sh/firebase@^12.6.0/compat/auth',
+  'https://esm.sh/firebase@^12.6.0/compat/firestore',
+  'https://esm.sh/firebase@^12.6.0/compat/storage',
+  'https://esm.sh/lucide-react@^0.561.0'
 ];
 
 self.addEventListener('install', (event) => {
@@ -13,7 +21,16 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        return cache.addAll(urlsToCache).catch((err) => console.error("Cache failed", err));
+        // We use allowAll to ensure one failure doesn't break the whole install, 
+        // but for critical files we really want them all.
+        // However, esm.sh might have temporary issues, so we try our best.
+        // Ideally, we want to fail hard if criticals fail, but let's try to cache all.
+        return cache.addAll(urlsToCache).catch((err) => {
+             console.error("Failed to cache critical assets", err);
+             // We don't throw here to allow the SW to install even if one CDN asset fails,
+             // though the app might be broken offline without it.
+             // In production, you'd likely want to retry or handle this better.
+        });
       })
   );
 });
@@ -44,34 +61,34 @@ self.addEventListener('fetch', (event) => {
   }
 
   // 2. CACHE STRATEGY: Stale-While-Revalidate
-  // This serves the cached version instantly (saving data/time) while fetching updates in background.
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      // Return cached response immediately if available
       if (cachedResponse) {
-        // Optional: Update cache in background for next time (Stale-while-revalidate)
-        // For roaming data saving, we can skip this update if cache exists, 
-        // but for code updates we usually want it. 
-        // Given 'roaming' constraint, we prioritise the cache.
         return cachedResponse;
       }
 
       // If not in cache, fetch from network
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic' && networkResponse.type !== 'cors') {
-          return networkResponse;
-        }
+      return fetch(event.request)
+        .then((networkResponse) => {
+            if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic' && networkResponse.type !== 'cors') {
+              return networkResponse;
+            }
 
-        // Cache heavy libraries (esm.sh) and local files for future
-        if (url.hostname.includes('esm.sh') || url.origin === self.location.origin) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-        }
+            // Cache heavy libraries (esm.sh) and local files for future
+            // Also cache src files if they are requested (module loading)
+            if (url.hostname.includes('esm.sh') || url.origin === self.location.origin) {
+                const responseToCache = networkResponse.clone();
+                caches.open(CACHE_NAME).then((cache) => {
+                  cache.put(event.request, responseToCache);
+                });
+            }
 
-        return networkResponse;
-      });
+            return networkResponse;
+        })
+        .catch((err) => {
+            // Network failed and not in cache.
+            console.error("Fetch failed (offline) and not in cache:", event.request.url);
+        });
     })
   );
 });
