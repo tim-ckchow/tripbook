@@ -4,7 +4,7 @@ import { db, firebase } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { Trip } from '../../types';
 import { Screen, TopBar, Card, Button, Input } from '../../components/ui/Layout';
-import { Plus, MapPin, RefreshCw, AlertTriangle, Loader } from 'lucide-react';
+import { Plus, MapPin, RefreshCw, AlertTriangle, Loader, WifiOff } from 'lucide-react';
 import { UserMenu } from '../../components/ui/UserMenu';
 
 interface TripListProps {
@@ -39,43 +39,49 @@ export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
     const tripsQuery = db.collection('trips')
       .where('allowedEmails', 'array-contains', user.email);
 
-    const unsubscribe = tripsQuery.onSnapshot((snapshot) => {
-      console.log(`[TripList] Realtime update received. Docs: ${snapshot.docs.length}`);
-      setErrorState(null); 
-      
-      const tripsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-      })) as Trip[];
+    // CRITICAL UPDATE: { includeMetadataChanges: true }
+    // This forces the listener to fire immediately with cached data (fromCache: true)
+    // instead of waiting for the network. This makes the app work offline.
+    const unsubscribe = tripsQuery.onSnapshot(
+      { includeMetadataChanges: true },
+      (snapshot) => {
+        console.log(`[TripList] Realtime update received. Docs: ${snapshot.docs.length}. From Cache: ${snapshot.metadata.fromCache}`);
+        setErrorState(null); 
+        
+        const tripsData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        })) as Trip[];
 
-      // Sort by start date descending
-      tripsData.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
-      
-      setTrips(tripsData);
-      setLoading(false);
+        // Sort by start date descending
+        tripsData.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+        
+        setTrips(tripsData);
+        setLoading(false);
 
-    }, (error: any) => {
-      console.error("[TripList] ❌ SNAPSHOT ERROR:", error);
-      
-      setLoading(false);
-      
-      if (error.code === 'failed-precondition' && error.message.includes('index')) {
-        setErrorState({
-          code: 'missing-index',
-          message: "Database index missing. Please check browser console for the creation link."
-        });
-      } else if (error.code === 'permission-denied') {
-        setErrorState({
-          code: 'permission-denied',
-          message: "You don't have permission to view these trips."
-        });
-      } else {
-        setErrorState({
-          code: 'unknown',
-          message: error.message || "Unknown error occurred"
-        });
+      }, (error: any) => {
+        console.error("[TripList] ❌ SNAPSHOT ERROR:", error);
+        
+        setLoading(false);
+        
+        if (error.code === 'failed-precondition' && error.message.includes('index')) {
+          setErrorState({
+            code: 'missing-index',
+            message: "Database index missing. Please check browser console for the creation link."
+          });
+        } else if (error.code === 'permission-denied') {
+          setErrorState({
+            code: 'permission-denied',
+            message: "You don't have permission to view these trips."
+          });
+        } else {
+          setErrorState({
+            code: 'unknown',
+            message: error.message || "Unknown error occurred"
+          });
+        }
       }
-    });
+    );
 
     return () => unsubscribe();
   }, [user, retryTrigger]);
