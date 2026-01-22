@@ -41,22 +41,27 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({ trip, initialTab }) =>
   useEffect(() => {
     setLoading(true);
     setErrorState(null);
+    
+    // UPDATED: { includeMetadataChanges: true } for offline support
     const unsubscribe = db.collection(`trips/${trip.id}/schedule`)
       .where('type', '==', activeTab === 'general' ? 'sightseeing' : activeTab) 
-      .onSnapshot((snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ScheduleItem));
-        data.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
-        setItems(data);
-        setLoading(false);
-      }, (error: any) => {
-          console.error("Bookings snapshot error:", error);
-          if (error.code === 'permission-denied') {
-              setErrorState({ code: 'permission-denied', message: 'Access restricted' });
-          } else {
-              setErrorState({ code: 'error', message: 'Failed to load bookings' });
-          }
+      .onSnapshot(
+        { includeMetadataChanges: true },
+        (snapshot) => {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ScheduleItem));
+          data.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+          setItems(data);
           setLoading(false);
-      });
+        }, (error: any) => {
+            console.error("Bookings snapshot error:", error);
+            if (error.code === 'permission-denied') {
+                setErrorState({ code: 'permission-denied', message: 'Access restricted' });
+            } else {
+                setErrorState({ code: 'error', message: 'Failed to load bookings' });
+            }
+            setLoading(false);
+        }
+      );
     return () => unsubscribe();
   }, [trip.id, activeTab]);
 
