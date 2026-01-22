@@ -35,11 +35,15 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ trip }) => {
     const unsub = db.collection(`trips/${trip.id}/transactions`)
         .orderBy('date', 'desc')
         .orderBy('createdAt', 'desc')
-        .onSnapshot(snap => {
-            const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
-            setTransactions(data);
-            setLoading(false);
-        });
+        // UPDATED: { includeMetadataChanges: true } for offline support
+        .onSnapshot(
+            { includeMetadataChanges: true },
+            (snap) => {
+                const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
+                setTransactions(data);
+                setLoading(false);
+            }
+        );
     return () => unsub();
   }, [trip.id]);
 
