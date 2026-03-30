@@ -4,18 +4,23 @@ import { Trip } from '../../types';
 
 interface TripSettingsModalProps {
   trip: Trip;
-  onSave: (start: string, end: string) => Promise<void>;
+  onSave: (start: string, end: string, baseCurrency: string, currencies: string[]) => Promise<void>;
   onClose: () => void;
 }
 
 export const TripSettingsModal: React.FC<TripSettingsModalProps> = ({ trip, onSave, onClose }) => {
   const [editDateRange, setEditDateRange] = useState({ start: trip.startDate, end: trip.endDate });
+  const [baseCurrency, setBaseCurrency] = useState(trip.baseCurrency || 'JPY');
+  const [currencies, setCurrencies] = useState(trip.currencies?.join(', ') || 'JPY, HKD');
   const [savingSettings, setSavingSettings] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       setSavingSettings(true);
-      await onSave(editDateRange.start, editDateRange.end);
+      
+      const currencyList = currencies.split(',').map(c => c.trim().toUpperCase()).filter(c => c);
+      
+      await onSave(editDateRange.start, editDateRange.end, baseCurrency, currencyList);
       setSavingSettings(false);
       onClose();
   };
@@ -36,6 +41,18 @@ export const TripSettingsModal: React.FC<TripSettingsModalProps> = ({ trip, onSa
                     type="date" 
                     value={editDateRange.end}
                     onChange={e => setEditDateRange({...editDateRange, end: e.target.value})}
+                />
+                <Input 
+                    label="Base Currency" 
+                    placeholder="e.g. JPY"
+                    value={baseCurrency}
+                    onChange={e => setBaseCurrency(e.target.value.toUpperCase())}
+                />
+                <Input 
+                    label="Available Currencies (comma separated)" 
+                    placeholder="e.g. JPY, HKD, USD"
+                    value={currencies}
+                    onChange={e => setCurrencies(e.target.value)}
                 />
                 <div className="flex gap-2 mt-2">
                     <Button type="button" variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
