@@ -110,6 +110,7 @@ export const TripList: React.FC<TripListProps> = ({ onSelectTrip }) => {
         startDate: startDate,
         endDate: endDate,
         baseCurrency: 'JPY',
+        currencies: ['JPY', 'HKD'],
         allowedEmails: [user.email],
         createdAt: new Date().toISOString()
       };
