@@ -21,6 +21,22 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ trip }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Transaction | null>(null);
   const [activeTab, setActiveTab] = useState<'split' | 'budget'>('split');
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+      const fetchRates = async () => {
+          try {
+              const res = await fetch(`https://open.er-api.com/v6/latest/${trip.baseCurrency || 'JPY'}`);
+              const data = await res.json();
+              if (data && data.rates) {
+                  setExchangeRates(data.rates);
+              }
+          } catch (err) {
+              console.error("Failed to fetch exchange rates", err);
+          }
+      };
+      fetchRates();
+  }, [trip.baseCurrency]);
 
   // Fetch Members
   useEffect(() => {
@@ -210,6 +226,18 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ trip }) => {
       return bal;
   }, [transactions]);
 
+  const totalInBaseCurrency = useMemo(() => {
+      let total = 0;
+      Object.entries(budgetBalances).forEach(([curr, amt]) => {
+          if (curr === (trip.baseCurrency || 'JPY')) {
+              total += amt;
+          } else if (exchangeRates[curr]) {
+              total += amt / exchangeRates[curr];
+          }
+      });
+      return total;
+  }, [budgetBalances, exchangeRates, trip.baseCurrency]);
+
   const splitTransactions = transactions.filter(t => t.type !== 'budget');
   const budgetTransactions = transactions.filter(t => t.type === 'budget');
 
@@ -347,6 +375,20 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ trip }) => {
                       <div className="w-full">
                           <h3 className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-3">Total Expenses</h3>
                           <div className="flex flex-col gap-3">
+                              {Object.keys(budgetBalances).length > 0 && (
+                                  <div className="flex items-center justify-between w-full border-b border-white/10 pb-3 mb-1">
+                                      <div className="flex items-center gap-3">
+                                          <CurrencyIcon currency={trip.baseCurrency || 'JPY'} className="!bg-brand !text-white" />
+                                          <div className="flex flex-col">
+                                              <span className="text-3xl font-mono font-bold text-white">
+                                                  {formatMoney(totalInBaseCurrency, trip.baseCurrency || 'JPY')}
+                                              </span>
+                                              <span className="text-[10px] text-gray-400 uppercase tracking-widest">Total in Base Currency</span>
+                                          </div>
+                                      </div>
+                                  </div>
+                              )}
+
                               {Object.keys(budgetBalances).length === 0 ? (
                                   <div className="text-gray-400 text-sm font-medium">No expenses recorded yet.</div>
                               ) : (
@@ -354,7 +396,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({ trip }) => {
                                       <div key={curr} className="flex items-center justify-between w-full">
                                           <div className="flex items-center gap-3">
                                               <CurrencyIcon currency={curr} className="!bg-white/20 !text-white" />
-                                              <span className="text-2xl font-mono font-bold text-white">
+                                              <span className="text-xl font-mono font-bold text-white/80">
                                                   {formatMoney(amt, curr)}
                                               </span>
                                           </div>
