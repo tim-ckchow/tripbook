@@ -121,6 +121,11 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
       else setSplitAmong(members.map(m => m.uid));
   };
 
+  const availableCurrencies = Array.from(new Set([
+      ...(trip.currencies && trip.currencies.length > 0 ? trip.currencies : ['JPY', 'HKD']),
+      ...(itemToEdit?.currency ? [itemToEdit.currency] : [])
+  ])).filter(Boolean).sort();
+
   return (
     <div className="fixed inset-0 bg-ink/20 z-[100] flex items-end sm:items-center justify-center backdrop-blur-sm sm:p-4">
        <div className="bg-white w-full max-w-md max-h-[90dvh] h-auto rounded-t-3xl sm:rounded-3xl shadow-xl flex flex-col animate-in slide-in-from-bottom-10 overflow-hidden pb-[env(safe-area-inset-bottom)]">
@@ -168,18 +173,15 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                   </div>
                   <div className="w-1/3">
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2 mb-1">Currency</label>
-                      <div className="flex flex-col gap-1 max-h-32 overflow-y-auto no-scrollbar">
-                          {(trip.currencies && trip.currencies.length > 0 ? trip.currencies : ['JPY', 'HKD']).map(curr => (
-                              <button 
-                                key={curr}
-                                type="button" 
-                                onClick={() => setCurrency(curr)} 
-                                className={`py-1.5 px-2 rounded-xl border-2 text-sm font-bold transition-all ${currency === curr ? 'bg-brand text-white border-brand' : 'bg-white text-gray-400 border-gray-200'}`}
-                              >
-                                  {curr}
-                              </button>
-                          ))}
-                      </div>
+                      <select
+                        value={currency}
+                        onChange={(e) => setCurrency(e.target.value)}
+                        className="w-full text-3xl font-bold bg-gray-50 border-2 border-gray-100 rounded-2xl px-4 py-3 focus:outline-none focus:border-brand"
+                      >
+                        {availableCurrencies.map(curr => (
+                          <option key={curr} value={curr}>{curr}</option>
+                        ))}
+                      </select>
                   </div>
               </div>
 
