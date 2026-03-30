@@ -1,7 +1,7 @@
 import React from 'react';
-import { RefreshCw, Utensils, Bus, ShoppingBag, Banknote, Landmark } from 'lucide-react';
+import { RefreshCw, Utensils, Bus, ShoppingBag, Banknote, Landmark, Wallet } from 'lucide-react';
 
-export const CurrencyIcon: React.FC<{ currency: 'JPY' | 'HKD'; size?: number; className?: string }> = ({ currency, size = 16, className="" }) => {
+export const CurrencyIcon: React.FC<{ currency: string; size?: number; className?: string }> = ({ currency, size = 16, className="" }) => {
     return (
         <span className={`font-mono font-bold flex items-center justify-center rounded bg-gray-100 ${className}`} style={{ width: size * 2, height: size * 1.5, fontSize: size * 0.7 }}>
             {currency}
@@ -9,8 +9,9 @@ export const CurrencyIcon: React.FC<{ currency: 'JPY' | 'HKD'; size?: number; cl
     );
 };
 
-export const CategoryIcon: React.FC<{ title: string; type: 'expense' | 'settlement' }> = ({ title, type }) => {
+export const CategoryIcon: React.FC<{ title: string; type: 'expense' | 'settlement' | 'budget' }> = ({ title, type }) => {
     if (type === 'settlement') return <RefreshCw size={18} className="text-green-500" />;
+    if (type === 'budget') return <Wallet size={18} className="text-purple-500" />;
     
     const lower = title.toLowerCase();
     if (lower.includes('food') || lower.includes('lunch') || lower.includes('dinner') || lower.includes('breakfast') || lower.includes('eat')) {
@@ -25,10 +26,15 @@ export const CategoryIcon: React.FC<{ title: string; type: 'expense' | 'settleme
     return <ShoppingBag size={18} className="text-gray-400" />;
 };
 
-export const formatMoney = (amount: number, currency: 'JPY' | 'HKD') => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: currency,
-        maximumFractionDigits: 0
-    }).format(amount);
+export const formatMoney = (amount: number, currency: string) => {
+    try {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: currency,
+            maximumFractionDigits: 0
+        }).format(amount);
+    } catch (e) {
+        // Fallback for invalid currency codes
+        return `${currency} ${amount.toFixed(0)}`;
+    }
 };
