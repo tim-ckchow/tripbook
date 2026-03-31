@@ -23,6 +23,7 @@ export interface Trip {
   startDate: string;
   endDate: string;
   baseCurrency: string;
+  currencies?: string[];
   allowedEmails: string[];
   noticeBoard?: string;
   weatherLocations?: WeatherLocation[];
@@ -93,10 +94,10 @@ export interface ScheduleItem {
 export interface Transaction {
   id: string;
   tripId: string;
-  type: 'expense' | 'settlement';
+  type: 'expense' | 'settlement' | 'budget';
   title: string;
   amount: number;
-  currency: 'JPY' | 'HKD';
+  currency: string;
   paidBy: string;
   splitAmong: string[];
   date: string;

@@ -184,16 +184,18 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({ trip, onTabChange, ini
 
   // --- ACTIONS ---
 
-  const handleSaveSettings = async (start: string, end: string) => {
+  const handleSaveSettings = async (start: string, end: string, baseCurrency: string, currencies: string[]) => {
       try {
           await db.collection('trips').doc(trip.id).update({
               startDate: start,
-              endDate: end
+              endDate: end,
+              baseCurrency,
+              currencies
           });
-          logActivity('update', 'Trip Dates', `Start Date updated to ${start}\nEnd Date updated to ${end}`);
+          logActivity('update', 'Trip Settings', `Start Date updated to ${start}\nEnd Date updated to ${end}\nBase Currency updated to ${baseCurrency}\nCurrencies updated to ${currencies.join(', ')}`);
       } catch (err) {
           console.error(err);
-          alert("Failed to update trip dates.");
+          alert("Failed to update trip settings.");
       }
   };
 

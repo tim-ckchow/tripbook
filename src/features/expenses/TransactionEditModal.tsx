@@ -12,18 +12,19 @@ interface TransactionEditModalProps {
   itemToEdit: Transaction | null;
   trip: Trip;
   members: TripMember[];
+  defaultType?: 'expense' | 'budget';
 }
 
 export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
-  isOpen, onClose, onSave, onDelete, itemToEdit, trip, members
+  isOpen, onClose, onSave, onDelete, itemToEdit, trip, members, defaultType = 'expense'
 }) => {
   const { user } = useAuth();
   
   // Form State
-  const [type, setType] = useState<'expense' | 'settlement'>('expense');
+  const [type, setType] = useState<'expense' | 'settlement' | 'budget'>(defaultType);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
-  const [currency, setCurrency] = useState<'JPY' | 'HKD'>('JPY');
+  const [currency, setCurrency] = useState<string>(trip.baseCurrency || 'JPY');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [paidBy, setPaidBy] = useState<string>('');
   
@@ -48,15 +49,17 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
         setPaidBy(itemToEdit.paidBy);
         if (itemToEdit.type === 'expense') {
             setSplitAmong(itemToEdit.splitAmong);
-        } else {
+        } else if (itemToEdit.type === 'settlement') {
             setPaidTo(itemToEdit.splitAmong[0] || '');
+        } else {
+            setSplitAmong([]);
         }
     } else {
         // Defaults
-        setType('expense');
+        setType(defaultType);
         setTitle('');
         setAmount('');
-        setCurrency('JPY');
+        setCurrency(trip.baseCurrency || 'JPY');
         setDate(new Date().toISOString().split('T')[0]);
         setPaidBy(user?.uid || '');
         // Default split among everyone for new expense
@@ -69,7 +72,7 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
     setIsDeleting(false);
     setIsSaving(false);
     setShowDeleteConfirm(false);
-  }, [itemToEdit, isOpen, members, user]);
+  }, [itemToEdit, isOpen, members, user, defaultType, trip.baseCurrency]);
 
   if (!isOpen) return null;
 
@@ -89,8 +92,8 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
         amount: Number(amount),
         currency,
         date,
-        paidBy,
-        splitAmong: type === 'settlement' ? [paidTo] : splitAmong,
+        paidBy: type === 'budget' ? (user?.uid || '') : paidBy,
+        splitAmong: type === 'settlement' ? [paidTo] : (type === 'budget' ? [] : splitAmong),
     });
     setIsSaving(false);
   };
@@ -118,6 +121,11 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
       else setSplitAmong(members.map(m => m.uid));
   };
 
+  const availableCurrencies = Array.from(new Set([
+      ...(trip.currencies && trip.currencies.length > 0 ? trip.currencies : ['JPY', 'HKD']),
+      ...(itemToEdit?.currency ? [itemToEdit.currency] : [])
+  ])).filter(Boolean).sort();
+
   return (
     <div className="fixed inset-0 bg-ink/20 z-[100] flex items-end sm:items-center justify-center backdrop-blur-sm sm:p-4">
        <div className="bg-white w-full max-w-md max-h-[90dvh] h-auto rounded-t-3xl sm:rounded-3xl shadow-xl flex flex-col animate-in slide-in-from-bottom-10 overflow-hidden pb-[env(safe-area-inset-bottom)]">
@@ -132,20 +140,22 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto no-scrollbar p-5 flex flex-col gap-5">
               
               {/* Type Switcher */}
-              {itemToEdit ? (
-                  <div className="bg-gray-100 p-3 rounded-xl flex items-center justify-center gap-2 text-gray-400 font-bold text-sm">
-                      <Lock size={14} />
-                      <span>{type === 'expense' ? 'Expense' : 'Pay Back'}</span>
-                  </div>
-              ) : (
-                  <div className="bg-gray-100 p-1 rounded-xl flex">
-                      <button type="button" onClick={() => setType('expense')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${type === 'expense' ? 'bg-white text-ink shadow-sm' : 'text-gray-400'}`}>
-                          Expense
-                      </button>
-                      <button type="button" onClick={() => setType('settlement')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${type === 'settlement' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-400'}`}>
-                          Pay Back
-                      </button>
-                  </div>
+              {type !== 'budget' && (
+                  itemToEdit ? (
+                      <div className="bg-gray-100 p-3 rounded-xl flex items-center justify-center gap-2 text-gray-400 font-bold text-sm">
+                          <Lock size={14} />
+                          <span>{type === 'expense' ? 'Expense' : 'Pay Back'}</span>
+                      </div>
+                  ) : (
+                      <div className="bg-gray-100 p-1 rounded-xl flex">
+                          <button type="button" onClick={() => setType('expense')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${type === 'expense' ? 'bg-white text-ink shadow-sm' : 'text-gray-400'}`}>
+                              Expense
+                          </button>
+                          <button type="button" onClick={() => setType('settlement')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${type === 'settlement' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-400'}`}>
+                              Pay Back
+                          </button>
+                      </div>
+                  )
               )}
 
               {/* Amount Row */}
@@ -163,15 +173,20 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                   </div>
                   <div className="w-1/3">
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2 mb-1">Currency</label>
-                      <div className="flex flex-col gap-1">
-                          <button type="button" onClick={() => setCurrency('JPY')} className={`py-1.5 px-2 rounded-xl border-2 text-sm font-bold transition-all ${currency === 'JPY' ? 'bg-brand text-white border-brand' : 'bg-white text-gray-400 border-gray-200'}`}>JPY</button>
-                          <button type="button" onClick={() => setCurrency('HKD')} className={`py-1.5 px-2 rounded-xl border-2 text-sm font-bold transition-all ${currency === 'HKD' ? 'bg-brand text-white border-brand' : 'bg-white text-gray-400 border-gray-200'}`}>HKD</button>
-                      </div>
+                      <select
+                        value={currency}
+                        onChange={(e) => setCurrency(e.target.value)}
+                        className="w-full text-3xl font-bold bg-gray-50 border-2 border-gray-100 rounded-2xl px-4 py-3 focus:outline-none focus:border-brand"
+                      >
+                        {availableCurrencies.map(curr => (
+                          <option key={curr} value={curr}>{curr}</option>
+                        ))}
+                      </select>
                   </div>
               </div>
 
-              {/* Title (Only for Expense) */}
-              {type === 'expense' && (
+              {/* Title (Only for Expense and Budget) */}
+              {(type === 'expense' || type === 'budget') && (
                   <Input 
                     label="Description" 
                     placeholder="Lunch, Taxi, Tickets..." 
@@ -181,69 +196,74 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                   />
               )}
 
-              {/* Payer */}
-              <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2 mb-2 block">
-                      Paid By
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                      {members.map(m => (
-                          <button 
-                            key={m.uid} 
-                            type="button"
-                            onClick={() => setPaidBy(m.uid)}
-                            className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all flex items-center gap-2 ${paidBy === m.uid ? 'bg-ink text-white border-ink' : 'bg-white text-gray-400 border-gray-200'}`}
-                          >
-                              {m.uid === user?.uid ? 'Me' : m.nickname}
-                          </button>
-                      ))}
-                  </div>
-              </div>
+              {/* Payer and Split (Hidden for Budget) */}
+              {type !== 'budget' && (
+                  <>
+                      {/* Payer */}
+                      <div>
+                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2 mb-2 block">
+                              Paid By
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                              {members.map(m => (
+                                  <button 
+                                    key={m.uid} 
+                                    type="button"
+                                    onClick={() => setPaidBy(m.uid)}
+                                    className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all flex items-center gap-2 ${paidBy === m.uid ? 'bg-ink text-white border-ink' : 'bg-white text-gray-400 border-gray-200'}`}
+                                  >
+                                      {m.uid === user?.uid ? 'Me' : m.nickname}
+                                  </button>
+                              ))}
+                          </div>
+                      </div>
 
-              {/* Split / Paid To */}
-              <div>
-                  {type === 'expense' ? (
-                      <>
-                        <div className="flex justify-between items-center mb-2">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Split Among</label>
-                            <button type="button" onClick={selectAll} className="text-[10px] font-bold text-brand uppercase">Select All</button>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {members.map(m => (
-                                <button 
-                                    key={m.uid} 
-                                    type="button"
-                                    onClick={() => toggleSplit(m.uid)}
-                                    className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all flex items-center gap-2 ${splitAmong.includes(m.uid) ? 'bg-brand/10 text-brand border-brand' : 'bg-white text-gray-400 border-gray-200'}`}
-                                >
-                                    {m.nickname}
-                                </button>
-                            ))}
-                        </div>
-                      </>
-                  ) : (
-                      <>
-                         <div className="mb-4 flex items-center justify-center">
-                             <ArrowRight className="text-gray-300" />
-                         </div>
-                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2 mb-2 block">
-                             Paid To
-                         </label>
-                         <div className="flex flex-wrap gap-2">
-                            {members.filter(m => m.uid !== paidBy).map(m => (
-                                <button 
-                                    key={m.uid} 
-                                    type="button"
-                                    onClick={() => setPaidTo(m.uid)}
-                                    className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all flex items-center gap-2 ${paidTo === m.uid ? 'bg-green-100 text-green-700 border-green-200' : 'bg-white text-gray-400 border-gray-200'}`}
-                                >
-                                    {m.nickname}
-                                </button>
-                            ))}
-                        </div>
-                      </>
-                  )}
-              </div>
+                      {/* Split / Paid To */}
+                      <div>
+                          {type === 'expense' ? (
+                              <>
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Split Among</label>
+                                    <button type="button" onClick={selectAll} className="text-[10px] font-bold text-brand uppercase">Select All</button>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {members.map(m => (
+                                        <button 
+                                            key={m.uid} 
+                                            type="button"
+                                            onClick={() => toggleSplit(m.uid)}
+                                            className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all flex items-center gap-2 ${splitAmong.includes(m.uid) ? 'bg-brand/10 text-brand border-brand' : 'bg-white text-gray-400 border-gray-200'}`}
+                                        >
+                                            {m.nickname}
+                                        </button>
+                                    ))}
+                                </div>
+                              </>
+                          ) : (
+                              <>
+                                 <div className="mb-4 flex items-center justify-center">
+                                     <ArrowRight className="text-gray-300" />
+                                 </div>
+                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2 mb-2 block">
+                                     Paid To
+                                 </label>
+                                 <div className="flex flex-wrap gap-2">
+                                    {members.filter(m => m.uid !== paidBy).map(m => (
+                                        <button 
+                                            key={m.uid} 
+                                            type="button"
+                                            onClick={() => setPaidTo(m.uid)}
+                                            className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all flex items-center gap-2 ${paidTo === m.uid ? 'bg-green-100 text-green-700 border-green-200' : 'bg-white text-gray-400 border-gray-200'}`}
+                                        >
+                                            {m.nickname}
+                                        </button>
+                                    ))}
+                                </div>
+                              </>
+                          )}
+                      </div>
+                  </>
+              )}
 
               <div className="bg-gray-50 p-2 rounded-xl border border-gray-100">
                   <Input 

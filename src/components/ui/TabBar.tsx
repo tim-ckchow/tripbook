@@ -12,7 +12,7 @@ export const TabBar: React.FC<TabBarProps> = ({ currentTab, onTabChange }) => {
     { id: AppTab.Overview, label: 'Home', icon: LayoutDashboard },
     { id: AppTab.Schedule, label: 'Plan', icon: Calendar },
     { id: AppTab.Bookings, label: 'Book', icon: Map },
-    { id: AppTab.Expenses, label: 'Split', icon: CreditCard },
+    { id: AppTab.Expenses, label: 'Expense', icon: CreditCard },
     { id: AppTab.Planning, label: 'Todo', icon: CheckSquare },
     { id: AppTab.Members, label: 'Team', icon: Users },
   ];
